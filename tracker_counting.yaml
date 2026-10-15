@@ -1,0 +1,19 @@
+# Konfigurasi tracker (ByteTrack) khusus counting orang lewat garis.
+# Dipakai oleh main.py lewat TRACKER_CFG. Beda dengan bytetrack.yaml bawaan:
+#
+#  - track_buffer 60 (bawaan 30): ID orang yang sempat tertutup / hilang
+#    sebentar masih bisa disambung ke ID yang SAMA (penting supaya orang
+#    yang terhalang saat di garis tidak jadi 2 ID berbeda).
+#  - new_track_thresh 0.45 (bawaan 0.25): ID BARU hanya dibuat dari deteksi
+#    yang yakin. Dipasangkan dengan conf rendah (0.10) di main.py, deteksi
+#    berskor rendah hanya dipakai untuk MEMPERTAHANKAN track yang sudah ada
+#    (ini kekuatan ByteTrack), bukan untuk bikin "orang hantu" dari
+#    tembok/pilar.
+tracker_type: bytetrack
+track_high_thresh: 0.35
+track_low_thresh: 0.10
+new_track_thresh: 0.45
+track_buffer: 60
+match_thresh: 0.80
+fuse_score: True   # ultralytics >= 8.3.x
+mot20: False       # ultralytics < 8.3.x (diabaikan di versi baru)

@@ -1,0 +1,2431 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tirtopeople Counting — Terminal Tipe A Tirtonadi</title>
+    <link rel="icon" type="image/png" href="/static/logo-kemenhub.png">
+    <!-- Font Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'] },
+                    colors: {
+                        navy: '#0b2035',        // sidebar Kemenhub
+                        navyActive: '#1b3c59',  // menu aktif & kartu sidebar
+                        btn: '#102b46',         // tombol utama
+                        btnHover: '#0b2035',
+                        gold: '#c49932',        // aksen emas
+                        page: '#f3f5f8',        // latar halaman
+                        line: '#e1e7ee',        // garis/border kartu
+                        ink: '#172e44'          // teks utama
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f3f5f8; }
+        ::-webkit-scrollbar-thumb { background: #cfd7e2; border-radius: 4px; }
+
+        /* Kartu kamera: kartu terakhir yang ganjil melebar penuh (layout horizontal) */
+        .cam-body { display: block; }
+        .cam-side {
+            display: grid; grid-template-columns: 1fr auto;
+            grid-template-areas: "counts badge" "counts actions";
+            gap: 8px 12px; margin-top: 12px; align-items: end;
+        }
+        .cam-counts { grid-area: counts; }
+        .cam-badge  { grid-area: badge; justify-self: end; }
+        .cam-actions { grid-area: actions; }
+        @media (min-width: 768px) {
+            #camera-grid > .cam-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+            #camera-grid > .cam-card:last-child:nth-child(odd) .cam-body { display: flex; gap: 24px; align-items: center; }
+            #camera-grid > .cam-card:last-child:nth-child(odd) .cam-video { flex: 0 0 52%; }
+            #camera-grid > .cam-card:last-child:nth-child(odd) .cam-side {
+                flex: 1; margin-top: 0; align-content: center; row-gap: 16px;
+                grid-template-areas: "badge badge" "counts actions";
+            }
+            #camera-grid > .cam-card:last-child:nth-child(odd) .cam-badge { justify-self: start; }
+        }
+    </style>
+</head>
+<body class="bg-page text-ink font-sans min-h-screen flex antialiased">
+
+    <!-- SIDEBAR -->
+    <aside class="w-60 bg-navy flex flex-col justify-between shrink-0 hidden md:flex sticky top-0 h-screen self-start">
+        <div>
+            <!-- Brand Kementerian Perhubungan -->
+            <div class="px-5 pt-6 pb-5 mx-0">
+                <img src="/static/logo-kemenhub.png" alt="Logo Kementerian Perhubungan" class="w-11 h-11 object-contain">
+                <h1 class="mt-4 text-[13px] font-bold tracking-wide text-white leading-snug uppercase">Kementerian<br>Perhubungan</h1>
+                <p class="text-[12px] text-[#b9c6d6] mt-1.5 leading-snug">Kantor Terminal Tipe A Tirtonadi</p>
+            </div>
+            <div class="mx-5 border-t border-white/10"></div>
+
+            <p class="px-5 pt-5 pb-2 text-[10px] font-semibold tracking-[0.14em] uppercase text-[#8fa2b8]">Ruang Kendali</p>
+
+            <!-- Navigation Links -->
+            <nav class="px-3 space-y-1">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 pl-3.5 pr-3 py-2.5 rounded-lg text-[13px] font-medium transition border-l-[3px] bg-navyActive text-white border-gold">
+                    <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                    <span>Dashboard</span>
+                </button>
+
+                <button onclick="switchTab('live-cameras')" id="nav-live-cameras" class="nav-btn w-full flex items-center gap-3 pl-3.5 pr-3 py-2.5 rounded-lg text-[13px] font-medium transition border-l-[3px] border-transparent text-[#c3cfdd] hover:bg-white/5 hover:text-white">
+                    <i data-lucide="video" class="w-4 h-4"></i>
+                    <span>Live Cameras</span>
+                </button>
+
+                <button onclick="switchTab('zones')" id="nav-zones" class="nav-btn w-full flex items-center gap-3 pl-3.5 pr-3 py-2.5 rounded-lg text-[13px] font-medium transition border-l-[3px] border-transparent text-[#c3cfdd] hover:bg-white/5 hover:text-white">
+                    <i data-lucide="map-pin" class="w-4 h-4"></i>
+                    <span>Zones</span>
+                </button>
+
+                {% if is_admin %}
+                <button onclick="switchTab('users')" id="nav-users" class="nav-btn w-full flex items-center gap-3 pl-3.5 pr-3 py-2.5 rounded-lg text-[13px] font-medium transition border-l-[3px] border-transparent text-[#c3cfdd] hover:bg-white/5 hover:text-white">
+                    <i data-lucide="users" class="w-4 h-4"></i>
+                    <span>Pengguna</span>
+                </button>
+
+                <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn w-full flex items-center gap-3 pl-3.5 pr-3 py-2.5 rounded-lg text-[13px] font-medium transition border-l-[3px] border-transparent text-[#c3cfdd] hover:bg-white/5 hover:text-white">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    <span>Settings</span>
+                </button>
+                {% endif %}
+            </nav>
+        </div>
+
+        <div>
+            <!-- Kartu Pemantauan Terintegrasi -->
+            <div class="mx-3 mb-4 p-4 bg-navyActive rounded-xl space-y-1.5">
+                <i data-lucide="shield-check" class="w-4 h-4 text-gold"></i>
+                <p class="text-[12px] font-semibold text-white">Pemantauan terintegrasi</p>
+                <p class="text-[11px] leading-relaxed text-[#b9c6d6]">Analitik pergerakan orang dan pengawasan area terminal.</p>
+            </div>
+            <div class="mx-5 border-t border-white/10"></div>
+            <p class="px-5 py-4 text-[11px] text-[#8fa2b8]">Tirtonadi · Surakarta</p>
+        </div>
+    </aside>
+
+    <!-- MAIN WRAPPER -->
+    <div class="flex-1 flex flex-col min-w-0">
+
+        <!-- HEADER TOPBAR -->
+        <header class="h-[58px] border-b border-line bg-white px-8 flex items-center justify-between sticky top-0 z-40">
+            <!-- Search Bar -->
+            <div class="relative w-[320px]">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                <input id="global-search-input" type="text" autocomplete="off" placeholder="Cari ID target, CCTV, atau zona..." class="peer w-full bg-page border border-transparent rounded-lg pl-10 pr-14 py-2 text-xs text-ink focus:outline-none focus:bg-white focus:border-[#315f8c] placeholder-slate-400 transition">
+                <span id="search-kbd-hint" class="hidden peer-placeholder-shown:inline pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-medium text-slate-400">⌘ K</span>
+                <button id="global-search-clear" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-ink">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+
+                <!-- Dropdown Hasil Pencarian -->
+                <div id="search-results-dropdown" class="hidden absolute top-11 left-0 w-[340px] bg-white border border-line rounded-xl shadow-xl z-50 max-h-80 overflow-y-auto p-2 space-y-1 text-xs"></div>
+            </div>
+
+            <!-- Topbar Actions -->
+            <div class="flex items-center gap-5">
+                <button type="button" onclick="openReportModal()" class="flex items-center gap-2 text-xs font-semibold text-white bg-btn hover:bg-btnHover px-4 py-2.5 rounded-lg transition">
+                    <i data-lucide="download" class="w-4 h-4 text-gold"></i>
+                    <span>{% if is_admin %}Laporan &amp; ekspor XLSX{% else %}Laporan{% endif %}</span>
+                </button>
+
+                <button type="button" class="p-1.5 text-slate-500 hover:text-ink rounded-lg transition" title="Notifikasi">
+                    <i data-lucide="bell" class="w-4 h-4"></i>
+                </button>
+
+                <div class="relative pl-5 border-l border-line">
+                    <button id="profile-menu-btn" onclick="toggleProfileMenu()" class="flex items-center gap-3 focus:outline-none">
+                        <div class="w-8 h-8 rounded-full bg-[#fcf6e7] flex items-center justify-center text-[11px] font-bold text-[#8a6a1c]">
+                            {{ (user.full_name or 'OP')[:2].upper() }}
+                        </div>
+                        <div class="text-left">
+                            <p class="text-xs font-semibold text-ink leading-tight">{{ user.full_name or 'Operator' }}</p>
+                            <p class="text-[10px] text-slate-500">{{ user.role or 'Operator' }}</p>
+                        </div>
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i>
+                    </button>
+
+                    <!-- Dropdown Menu Profile -->
+                    <div id="profile-menu-dropdown" class="hidden absolute right-0 top-12 w-48 bg-white border border-line rounded-xl shadow-xl z-50 py-2">
+                        {% if is_admin %}
+                        <button onclick="switchTab('settings'); toggleProfileMenu();" class="w-full flex items-center gap-2 px-4 py-2 text-xs text-slate-600 hover:bg-slate-50 hover:text-ink transition">
+                            <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                            <span>Pengaturan Akun</span>
+                        </button>
+                        {% endif %}
+                        <a href="/logout" class="w-full flex items-center gap-2 px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 transition">
+                            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                            <span>Logout</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- VIEW CONTAINER -->
+        <main class="px-8 py-7 space-y-6 flex-1">
+
+            <!-- ================= TAB 1: DASHBOARD ================= -->
+            <div id="tab-dashboard" class="tab-content space-y-6">
+
+                <!-- Judul halaman -->
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-[11px] font-medium tracking-[0.1em] uppercase text-gold">Pusat pemantauan counting terminal</p>
+                        <h2 class="text-[28px] leading-tight font-semibold text-ink mt-1">Tirtopeople Counting</h2>
+                        <p class="text-[13px] text-slate-500 mt-1">Dashboard pergerakan orang, okupansi zona, dan pemantauan CCTV.</p>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <p id="page-date" class="text-[13px] font-medium text-ink">-</p>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Sesi pemantauan hari ini</p>
+                    </div>
+                </div>
+
+                <!-- Banner Status Sesi Counting Otomatis (23 jam aktif / 1 jam jeda cetak laporan) -->
+                <div id="session-status-banner" class="hidden px-4 py-2.5 rounded-lg border text-xs font-medium flex items-center justify-between">
+                    <span id="session-status-text" class="flex items-center gap-2"></span>
+                    <span class="flex items-center gap-3">
+                        <span id="session-status-timer" class="font-mono"></span>
+                        <i data-lucide="shield-check" class="w-4 h-4"></i>
+                    </span>
+                </div>
+
+                <!-- Filter CCTV: daftar opsi diisi otomatis dari /api/cameras (kamera baru langsung muncul) -->
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div class="flex items-center gap-2.5 text-xs">
+                        <i data-lucide="sliders-horizontal" class="w-4 h-4 text-slate-500"></i>
+                        <span class="font-semibold text-ink">Cakupan pemantauan</span>
+                        <span id="cam-filter-summary" class="text-slate-500">Menampilkan semua CCTV</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="cam-filter-select" onchange="onCamFilterChange(this.value)"
+                            class="bg-white border border-line text-xs text-ink rounded-lg px-3.5 py-2 min-w-[170px] focus:outline-none focus:border-[#315f8c]">
+                            <option value="">Semua CCTV</option>
+                        </select>
+                        <button onclick="onCamFilterChange('')" id="cam-filter-reset"
+                            class="hidden px-3 py-2 text-xs font-semibold text-slate-600 hover:text-ink bg-white hover:bg-slate-50 rounded-lg border border-line transition">Reset</button>
+                    </div>
+                </div>
+
+                <!-- 4 KPI Metrics -->
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                    <div class="p-5 bg-white border border-line rounded-xl">
+                        <div class="flex items-start justify-between">
+                            <p class="text-[10.5px] font-medium tracking-wide uppercase text-slate-500">Total orang hari ini</p>
+                            <i data-lucide="users" class="w-4 h-4 text-[#315f8c]"></i>
+                        </div>
+                        <h3 id="stat-total-today" class="text-[26px] leading-none font-medium text-ink mt-3">0</h3>
+                        <p class="text-[11px] text-emerald-600 font-medium mt-3">Pemantauan waktu nyata</p>
+                    </div>
+
+                    <div class="p-5 bg-white border border-line rounded-xl">
+                        <div class="flex items-start justify-between">
+                            <p class="text-[10.5px] font-medium tracking-wide uppercase text-slate-500">Okupansi saat ini</p>
+                            <i data-lucide="activity" class="w-4 h-4 text-gold"></i>
+                        </div>
+                        <div class="flex items-baseline gap-1.5 mt-3">
+                            <h3 id="stat-occupancy" class="text-[26px] leading-none font-medium text-ink">0</h3>
+                            <span id="stat-capacity" class="text-slate-400 text-sm">/ 0</span>
+                        </div>
+                        <p id="stat-threshold" class="text-[11px] text-amber-600 font-medium mt-3">0% dari ambang kapasitas</p>
+                    </div>
+
+                    <div class="p-5 bg-white border border-line rounded-xl">
+                        <div class="flex items-start justify-between">
+                            <p class="text-[10.5px] font-medium tracking-wide uppercase text-slate-500">Jam puncak</p>
+                            <i data-lucide="clock" class="w-4 h-4 text-gold"></i>
+                        </div>
+                        <h3 id="stat-peak-hour" class="text-[26px] leading-none font-medium text-ink mt-3 whitespace-nowrap">-</h3>
+                        <p id="stat-peak-hour-sub" class="text-[11px] text-amber-600 font-medium mt-3">Belum ada data hari ini</p>
+                    </div>
+
+                    <div class="p-5 bg-white border border-line rounded-xl">
+                        <div class="flex items-start justify-between">
+                            <p class="text-[10.5px] font-medium tracking-wide uppercase text-slate-500">Kamera aktif</p>
+                            <i data-lucide="video" class="w-4 h-4 text-[#315f8c]"></i>
+                        </div>
+                        <div class="flex items-baseline gap-1.5 mt-3">
+                            <h3 id="stat-active-cams" class="text-[26px] leading-none font-medium text-ink">0</h3>
+                            <span id="stat-total-cams" class="text-slate-400 text-sm">/ 0</span>
+                        </div>
+                        <p id="stat-active-cams-sub" class="text-[11px] text-emerald-600 font-medium mt-3">-</p>
+                    </div>
+                </div>
+
+                <!-- Grafik & Okupansi Zona -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    <div class="lg:col-span-8 p-6 bg-white border border-line rounded-xl">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h4 class="text-[15px] font-semibold text-ink">Pergerakan orang</h4>
+                                <p class="text-xs text-slate-500 mt-0.5">Jumlah masuk dan keluar sepanjang waktu</p>
+                            </div>
+                            <div class="flex items-center gap-4 text-[11px] font-medium text-slate-600">
+                                <span class="flex items-center gap-1.5"><span class="w-3 h-[2px] rounded bg-[#315f8c]"></span>Masuk</span>
+                                <span class="flex items-center gap-1.5"><span class="w-3 h-[2px] rounded bg-gold"></span>Keluar</span>
+                            </div>
+                        </div>
+                        <div class="h-64 mt-4">
+                            <canvas id="trafficChart"></canvas>
+                        </div>
+                        <p class="text-[10.5px] text-slate-400 mt-3">Satuan: orang · Interval pemantauan 5 menit</p>
+                    </div>
+
+                    <div class="lg:col-span-4 p-6 bg-white border border-line rounded-xl flex flex-col">
+                        <div>
+                            <h4 class="text-[15px] font-semibold text-ink">Okupansi zona</h4>
+                            <p class="text-xs text-slate-500 mt-0.5">Kapasitas terpantau per lokasi CCTV</p>
+                        </div>
+                        <div id="zone-occupancy-list" class="space-y-5 pt-5 flex-1">
+                            <p class="text-xs text-slate-400 text-center py-4">Memuat data zona...</p>
+                        </div>
+                        <p id="zone-status-note" class="flex items-center gap-1.5 text-[11px] text-emerald-600 font-medium pt-4"></p>
+                    </div>
+                </div>
+
+                <!-- Rincian orang terinput per CCTV (otomatis bertambah saat unit CCTV baru ditambahkan) -->
+                <div class="p-6 bg-white border border-line rounded-xl">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 class="text-[15px] font-semibold text-ink">Jumlah orang per CCTV</h4>
+                            <p class="text-xs text-slate-500 mt-0.5">Pilih baris untuk memfilter pemantauan ke CCTV terkait</p>
+                        </div>
+                        <span id="cam-breakdown-count" class="text-[11px] font-semibold text-[#315f8c]">0 CCTV</span>
+                    </div>
+                    <div class="overflow-x-auto mt-4">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="text-slate-500 border-b border-line text-[10px] tracking-wider uppercase">
+                                    <th class="py-2.5 font-medium">CCTV</th>
+                                    <th class="py-2.5 font-medium">Lokasi</th>
+                                    <th class="py-2.5 font-medium">Status</th>
+                                    <th class="py-2.5 font-medium text-right">Masuk</th>
+                                    <th class="py-2.5 font-medium text-right">Keluar</th>
+                                    <th class="py-2.5 font-medium text-right">Di dalam</th>
+                                    <th class="py-2.5 font-medium text-right">Total terinput</th>
+                                    <th class="py-2.5 w-8"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="cam-breakdown-body" class="divide-y divide-line text-slate-600">
+                                <tr><td colspan="8" class="py-4 text-center text-slate-400 italic">Memuat data CCTV...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Pemantauan Langsung & Log Peristiwa -->
+                <div class="grid grid-cols-1 lg:grid-cols-[9fr_10fr] gap-5">
+                    <div class="p-6 bg-white border border-line rounded-xl">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h4 class="text-[15px] font-semibold text-ink">Pemantauan langsung</h4>
+                                <p class="text-xs text-slate-500 mt-0.5">Pratinjau deteksi dan pelacakan orang</p>
+                            </div>
+                            <button onclick="switchTab('live-cameras')" class="text-xs font-semibold text-[#315f8c] hover:text-ink">Buka stream ↗</button>
+                        </div>
+                        <div class="relative bg-black rounded-lg overflow-hidden aspect-video mt-4">
+                            <img id="dashboard-live-feed-img" src="" class="w-full h-full object-contain hidden" alt="Live Camera Preview">
+                            <div id="dashboard-live-feed-empty" class="w-full h-full flex flex-col items-center justify-center text-slate-500 space-y-2">
+                                <i data-lucide="video-off" class="w-8 h-8"></i>
+                                <span class="text-xs font-semibold">Belum ada kamera yang online</span>
+                            </div>
+                        </div>
+                        <div id="dashboard-live-feed-info" class="hidden flex items-center justify-between mt-3">
+                            <div>
+                                <p id="dashboard-live-feed-name" class="text-[13px] font-semibold text-ink">-</p>
+                                <p id="dashboard-live-feed-meta" class="text-[11px] text-slate-500 mt-0.5"></p>
+                            </div>
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold tracking-wide"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>ONLINE</span>
+                        </div>
+                    </div>
+
+                    <div class="p-6 bg-white border border-line rounded-xl">
+                        <div>
+                            <h4 class="text-[15px] font-semibold text-ink">Log peristiwa terbaru</h4>
+                            <p class="text-xs text-slate-500 mt-0.5">Deteksi ambang dan peristiwa lintasan</p>
+                        </div>
+                        <div class="overflow-x-auto mt-4">
+                            <table class="w-full text-left text-xs">
+                                <thead>
+                                    <tr class="text-slate-500 border-b border-line text-[10px] tracking-wider uppercase">
+                                        <th class="py-2.5 font-medium">Waktu</th>
+                                        <th class="py-2.5 font-medium">ID target</th>
+                                        <th class="py-2.5 font-medium">Peristiwa</th>
+                                        <th class="py-2.5 font-medium">Status alur</th>
+                                        <th class="py-2.5 w-8"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-logs-table" class="divide-y divide-line text-slate-600">
+                                    <tr>
+                                        <td colspan="5" class="py-4 text-center text-slate-400 italic">Menunggu deteksi...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= TAB 2: LIVE CAMERAS ================= -->
+            <div id="tab-live-cameras" class="tab-content hidden space-y-6">
+                <div class="flex justify-between items-start gap-4">
+                    <div>
+                        <p class="text-[11px] font-medium tracking-[0.1em] uppercase text-gold">Terminal Tipe A Tirtonadi · Live Camera</p>
+                        <h2 class="text-[28px] leading-tight font-semibold text-ink mt-1">Grid Monitoring Kamera</h2>
+                        <p class="text-[13px] text-slate-500 mt-1">Live CCTV yang terhubung dengan people counting</p>
+                    </div>
+                    {% if is_admin %}
+                    <button onclick="openCameraForm()" class="flex items-center gap-2 bg-btn hover:bg-btnHover text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition shrink-0">
+                        <i data-lucide="plus" class="w-4 h-4 text-gold"></i> Tambah Unit CCTV
+                    </button>
+                    {% endif %}
+                </div>
+
+                <div class="px-4 py-2.5 bg-white border border-line rounded-xl flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="video" class="w-4 h-4 text-gold"></i>
+                        <span id="cam-grid-total" class="font-semibold text-ink">0 unit CCTV</span>
+                        <span class="w-px h-4 bg-line"></span>
+                        <span class="text-slate-500">Semua kamera ditampilkan</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="flex items-center gap-1.5 text-emerald-600 font-medium"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span><span id="cam-grid-online">0 Online</span></span>
+                        <span class="w-px h-4 bg-line"></span>
+                        <span class="text-ink font-medium">Counting aktif</span>
+                    </div>
+                </div>
+
+                <div id="camera-grid" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <!-- Diisi otomatis oleh JS dari /api/cameras -->
+                    <div class="col-span-2 text-center text-slate-400 text-xs py-8">Memuat daftar kamera...</div>
+                </div>
+            </div>
+
+<!-- MODAL CRUD KAMERA -->
+            <div id="camera-form-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-line rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+                    <div class="flex items-center justify-between p-5 border-b border-line">
+                        <h3 id="camera-form-title" class="text-sm font-bold text-ink">Tambah Unit CCTV</h3>
+                        <button onclick="closeCameraForm()" class="text-slate-500 hover:text-ink">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div class="p-5 overflow-y-auto flex-1 space-y-3 text-xs">
+                        <input type="hidden" id="cam-form-id">
+                        <div>
+                            <label class="block text-slate-500 mb-1 font-semibold">Nama Kamera *</label>
+                            <input id="cam-form-name" type="text" placeholder="mis. CAM-02 Lobby Barat" class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                        </div>
+                        <div>
+                            <label class="block text-slate-500 mb-1 font-semibold">Lokasi / Titik Pemasangan *</label>
+                            <input id="cam-form-location" type="text" placeholder="mis. Lobby Barat Lt.1" class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-slate-500 mb-1 font-semibold">Merek / Brand</label>
+                                <input id="cam-form-brand" type="text" placeholder="Dahua / Hikvision / dll" class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 mb-1 font-semibold">Port RTSP</label>
+                                <input id="cam-form-port" type="number" value="554" class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-slate-500 mb-1 font-semibold">Alamat IP Kamera *</label>
+                            <input id="cam-form-ip" type="text" placeholder="mis. 10.103.0.92" class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-slate-500 mb-1 font-semibold">Username RTSP</label>
+                                <input id="cam-form-username" type="text" placeholder="admin" class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 mb-1 font-semibold">Password RTSP</label>
+                                <input id="cam-form-password" type="password" placeholder="(kosongkan jika tidak diubah)" class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-slate-500 mb-1 font-semibold">Stream Path</label>
+                            <input id="cam-form-streampath" type="text" placeholder="/cam/realmonitor?channel=1&subtype=1" class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                        </div>
+                        <div>
+                            <label class="block text-slate-500 mb-1 font-semibold">Tag (bebas, opsional)</label>
+                            <input id="cam-form-tag" type="text" maxlength="100" placeholder="mis. VIP, Zona A, Gate 2..." class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                        </div>
+                        <div class="flex items-center gap-2 pt-1">
+                            <input id="cam-form-active" type="checkbox" checked class="w-4 h-4 accent-[#102b46]">
+                            <label for="cam-form-active" class="text-slate-600 font-semibold">Aktifkan counting untuk kamera ini</label>
+                        </div>
+
+                        <div id="cam-form-test-result" class="hidden p-2.5 rounded-lg text-[11px] font-semibold"></div>
+                    </div>
+                    <div class="p-5 border-t border-line flex gap-3">
+                        <button onclick="testCameraConnection()" class="flex-1 bg-white border border-line hover:bg-slate-50 text-slate-700 font-bold py-2.5 rounded-xl transition text-xs flex items-center justify-center gap-2">
+                            <i data-lucide="plug-zap" class="w-3.5 h-3.5"></i> Tes Koneksi
+                        </button>
+                        <button onclick="saveCameraForm()" class="flex-1 bg-btn hover:bg-btnHover text-white font-bold py-2.5 rounded-xl transition text-xs">
+                            Simpan
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL ATUR GARIS & LABEL COUNTING (Kebutuhan #1: counting bisa diedit) -->
+            <div id="counting-config-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-line rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+                    <div class="flex items-center justify-between p-5 border-b border-line">
+                        <div>
+                            <h3 class="text-sm font-bold text-ink">Atur Garis & Label Counting</h3>
+                            <p id="cc-cam-name" class="text-[11px] text-slate-500 mt-0.5"></p>
+                        </div>
+                        <button onclick="closeCountingConfig()" class="text-slate-500 hover:text-ink">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div class="p-5 overflow-y-auto flex-1 space-y-4 text-xs">
+                        <input type="hidden" id="cc-cam-id">
+
+                        <div>
+                            <label class="block text-slate-500 mb-1.5 font-semibold">Garis Hitung (tarik kedua titik merah, bebas arah)</label>
+                            <div id="cc-preview-container" class="relative bg-black rounded-xl overflow-hidden aspect-video border border-line select-none" style="touch-action:none;">
+                                <img id="cc-preview-img" src="" class="w-full h-full object-contain pointer-events-none" alt="Preview kamera">
+                                <svg id="cc-line-svg" class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <line id="cc-line-el" x1="0" y1="50" x2="100" y2="50" stroke="#ef4444" stroke-width="1" vector-effect="non-scaling-stroke" />
+                                </svg>
+                                <div id="cc-handle-1" class="absolute w-4 h-4 -ml-2 -mt-2 rounded-full bg-red-500 border-2 border-white shadow-lg cursor-move" style="left:0%; top:50%;"></div>
+                                <div id="cc-handle-2" class="absolute w-4 h-4 -ml-2 -mt-2 rounded-full bg-red-500 border-2 border-white shadow-lg cursor-move" style="left:100%; top:50%;"></div>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-1">Tarik kedua titik merah ke posisi & arah mana saja - garis ini yang dipakai sistem mendeteksi orang lewat (tidak harus horizontal, bisa diagonal/vertikal/pendek di tengah frame).</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-slate-500 mb-1 font-semibold">Label "Masuk"</label>
+                                <input id="cc-label-masuk" type="text" placeholder="MASUK" class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 mb-1 font-semibold">Label "Keluar"</label>
+                                <input id="cc-label-keluar" type="text" placeholder="KELUAR" class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-slate-500 mb-1 font-semibold">Arah Hitung</label>
+                                <select id="cc-direction" class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                                    <option value="down_in">Arah Normal = Masuk</option>
+                                    <option value="up_in">Arah Dibalik = Masuk</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 mb-1 font-semibold">Kapasitas Maks. Zona</label>
+                                <input id="cc-max-capacity" type="number" min="1" value="100" class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-slate-500">Kalau arah Masuk/Keluar kebalik setelah disimpan, cukup ganti "Arah Hitung" ke "Dibalik" - tidak perlu gambar ulang garisnya. Kapasitas dipakai untuk persentase di panel Zone Occupancy pada Dashboard.</p>
+
+                        <div>
+                            <label class="block text-slate-500 mb-1 font-semibold">Tag (bebas, opsional)</label>
+                            <input id="cc-tag-name" type="text" maxlength="100" placeholder="mis. VIP, Zona A, Gate 2..." class="w-full bg-white border border-line rounded-xl p-2.5 text-slate-700 focus:outline-none focus:border-[#315f8c]">
+                            <p class="text-[10px] text-slate-500 mt-1">Label bebas untuk kamera ini, tampil sebagai badge kecil di kartu kamera. Isi apa saja sesuai kebutuhanmu.</p>
+                        </div>
+                    </div>
+                    <div class="p-5 border-t border-line flex gap-3">
+                        <button onclick="saveCountingConfig()" class="flex-1 bg-btn hover:bg-btnHover text-white font-bold py-2.5 rounded-xl transition text-xs">
+                            Simpan Pengaturan Counting
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+                        <!-- ================= TAB 3: ZONES (DENAH LOKASI) ================= -->
+            <div id="tab-zones" class="tab-content hidden space-y-6">
+                <div>
+                    <p class="text-[11px] font-medium tracking-[0.1em] uppercase text-gold">Terminal Tipe A Tirtonadi · Zones</p>
+                    <h2 class="text-[28px] leading-tight font-semibold text-ink mt-1">Denah &amp; Distribusi Zona CCTV</h2>
+                    <p class="text-[13px] text-slate-500 mt-1">Titik lokasi CCTV Sarana dan cakupan counting area</p>
+                </div>
+
+                <div class="p-6 bg-white border border-line rounded-xl space-y-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-lg bg-[#fcf6e7] text-gold flex items-center justify-center">
+                                <i data-lucide="map-pin" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-[15px] font-semibold text-ink">Denah Terminal &amp; Titik CCTV</h3>
+                                <p id="zonemap-summary" class="text-[11px] text-slate-400">Memuat kamera...</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span id="zonemap-lock-badge" class="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600"><i data-lucide="lock" class="w-3.5 h-3.5"></i>Posisi terkunci</span>
+                            {% if is_admin %}
+                            <button id="zonemap-edit-btn" onclick="toggleZoneMapEdit()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-line text-[12px] font-semibold text-ink hover:bg-page transition">
+                                <i data-lucide="move" class="w-3.5 h-3.5"></i><span id="zonemap-edit-label">Atur Posisi Kamera</span>
+                            </button>
+                            {% endif %}
+                            <button id="zonemap-cancel-btn" onclick="cancelZoneMapEdit()" class="hidden inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-line text-[12px] font-semibold text-slate-600 hover:bg-page transition">Batal</button>
+                            <button id="zonemap-apply-btn" onclick="applyZoneMapEdit()" class="hidden inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-btn text-white text-[12px] font-semibold hover:bg-btnHover transition">
+                                <i data-lucide="check" class="w-3.5 h-3.5"></i><span id="zonemap-apply-label">Apply</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="zonemap-edit-hint" class="hidden flex items-start gap-2 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <i data-lucide="hand" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
+                        <span>Mode atur posisi aktif: <b>seret titik kamera</b> ke lokasi yang diinginkan, lalu klik <b>Apply</b> untuk menyimpan dan mengunci posisi (atau <b>Batal</b> untuk membuang perubahan). Titik berwarna kuning berkedip = kamera baru yang belum diposisikan.</span>
+                    </div>
+
+                    <div class="relative w-full overflow-auto rounded-xl border border-line bg-white">
+                        <div id="zonemap-stage" class="relative select-none" style="aspect-ratio: 2462 / 1248; min-width: 760px;">
+                            <img id="zonemap-img" src="/static/denah_terminal.jpg" alt="Denah Terminal Tipe A Tirtonadi" draggable="false" class="absolute inset-0 w-full h-full object-contain pointer-events-none">
+                            <div id="zonemap-markers" class="absolute inset-0"></div>
+
+                            <!-- Popup view kamera kecil (live counting) -->
+                            <div id="zonemap-popup" class="hidden absolute z-30 w-[300px] bg-white rounded-xl shadow-2xl border border-line overflow-hidden">
+                                <div class="flex items-center justify-between px-3 py-2 border-b border-line">
+                                    <p id="zonemap-popup-name" class="text-[12px] font-semibold text-ink truncate pr-2">-</p>
+                                    <button onclick="closeZoneMapPopup()" class="text-slate-400 hover:text-ink shrink-0" title="Tutup"><i data-lucide="x" class="w-4 h-4"></i></button>
+                                </div>
+                                <div class="relative bg-black" style="aspect-ratio: 16/9;">
+                                    <img id="zonemap-popup-img" alt="Live CCTV" class="w-full h-full object-contain">
+                                    <div id="zonemap-popup-offline" class="hidden absolute inset-0 flex items-center justify-center text-[12px] text-slate-300">Kamera offline</div>
+                                </div>
+                                <div class="grid grid-cols-3 text-center border-b border-line">
+                                    <div class="py-2"><p class="text-[10px] uppercase tracking-wide text-slate-400">Masuk</p><p id="zonemap-popup-in" class="text-[18px] font-semibold text-emerald-600">0</p></div>
+                                    <div class="py-2 border-x border-line"><p class="text-[10px] uppercase tracking-wide text-slate-400">Keluar</p><p id="zonemap-popup-out" class="text-[18px] font-semibold text-rose-600">0</p></div>
+                                    <div class="py-2"><p class="text-[10px] uppercase tracking-wide text-slate-400">Di Dalam</p><p id="zonemap-popup-occ" class="text-[18px] font-semibold text-ink">0</p></div>
+                                </div>
+                                <div class="px-3 py-2 text-[12px] text-slate-500">
+                                    <span class="font-semibold text-slate-600">Lokasi:</span> <span id="zonemap-popup-loc">-</span>
+                                    <div class="mt-1.5 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden"><div id="zonemap-popup-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-500" style="width:0%"></div></div>
+                                    <p id="zonemap-popup-cap" class="text-[10px] text-slate-400 mt-1"></p>
+                                </div>
+                                <div id="zonemap-popup-actions" class="hidden px-3 pb-3">
+                                    <button onclick="resetZoneMapPosition()" class="w-full text-[11px] font-semibold text-slate-500 hover:text-ink border border-line rounded-lg py-1.5 hover:bg-page transition">Kembalikan ke "belum diposisikan"</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-slate-500">
+                        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>Online &lt; 50%</span>
+                        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Online 50–79%</span>
+                        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>Online &ge; 80%</span>
+                        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>Offline</span>
+                        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-yellow-400 ring-2 ring-yellow-200"></span>Belum diposisikan</span>
+                    </div>
+                    <p class="flex items-center gap-2 text-[11px] text-slate-500"><i data-lucide="info" class="w-3.5 h-3.5"></i>Kamera baru yang ditambahkan di menu Live Cameras otomatis muncul di denah ini; kamera yang dihapus otomatis hilang.</p>
+                </div>
+            </div>
+
+            <!-- ================= TAB 4: SETTINGS ================= -->
+            {% if is_admin %}
+            <!-- ================= TAB: PENGGUNA (khusus admin) ================= -->
+            <div id="tab-users" class="tab-content hidden space-y-6">
+                <div class="flex justify-between items-start gap-4">
+                    <div>
+                        <p class="text-[11px] font-medium tracking-[0.1em] uppercase text-gold">Terminal Tipe A Tirtonadi · Pengguna</p>
+                        <h2 class="text-[28px] leading-tight font-semibold text-ink mt-1">Pengguna &amp; Riwayat Akses</h2>
+                        <p class="text-[13px] text-slate-500 mt-1">Buat akun pengguna (username + kata sandi), pantau IP dan riwayat login. Pengguna hanya dapat melihat data.</p>
+                    </div>
+                    <button onclick="loadUsersTab()" class="flex items-center gap-2 bg-white border border-line text-ink text-xs font-semibold px-4 py-2.5 rounded-lg hover:bg-page transition shrink-0">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Muat ulang
+                    </button>
+                </div>
+
+                <div class="bg-white border border-line rounded-xl p-5">
+                    <h3 class="text-[14px] font-semibold text-ink">Tambah Pengguna</h3>
+                    <p class="text-[12px] text-slate-500 mt-0.5">Buat akun, lalu berikan username dan kata sandinya kepada yang bersangkutan. Sandi: min. 8 karakter, huruf dan angka.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+                        <input id="nu-name" type="text" maxlength="150" placeholder="Nama lengkap" class="border border-line rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500">
+                        <input id="nu-username" type="text" maxlength="50" autocomplete="off" placeholder="Username" class="border border-line rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500">
+                        <input id="nu-password" type="text" maxlength="128" autocomplete="off" placeholder="Kata sandi" class="border border-line rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500">
+                        <button onclick="createUser()" class="bg-ink text-white text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition">Buat Akun</button>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-line rounded-xl overflow-hidden">
+                    <div class="px-5 py-3 border-b border-line flex items-center justify-between">
+                        <h3 class="text-[14px] font-semibold text-ink">Akun Terdaftar</h3>
+                        <span id="users-summary" class="text-[11px] text-slate-400">Memuat...</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs">
+                            <thead class="bg-page text-slate-500 text-left">
+                                <tr>
+                                    <th class="px-5 py-2.5 font-semibold">Nama</th>
+                                    <th class="px-3 py-2.5 font-semibold">Username</th>
+                                    <th class="px-3 py-2.5 font-semibold">Peran</th>
+                                    <th class="px-3 py-2.5 font-semibold">Terdaftar</th>
+                                    <th class="px-3 py-2.5 font-semibold">Login Terakhir</th>
+                                    <th class="px-3 py-2.5 font-semibold">IP Terakhir</th>
+                                    <th class="px-3 py-2.5 font-semibold text-right">Jumlah Login</th>
+                                    <th class="px-3 py-2.5 font-semibold text-right">Status</th>
+                                    <th class="px-5 py-2.5 font-semibold text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body" class="divide-y divide-line"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-line rounded-xl overflow-hidden">
+                    <div class="px-5 py-3 border-b border-line flex items-center justify-between">
+                        <h3 class="text-[14px] font-semibold text-ink">Riwayat Login Terbaru</h3>
+                        <span class="text-[11px] text-slate-400">100 login terakhir</span>
+                    </div>
+                    <div class="overflow-x-auto max-h-[420px] overflow-y-auto">
+                        <table class="w-full text-xs">
+                            <thead class="bg-page text-slate-500 text-left sticky top-0">
+                                <tr>
+                                    <th class="px-5 py-2.5 font-semibold">Waktu</th>
+                                    <th class="px-3 py-2.5 font-semibold">Nama</th>
+                                    <th class="px-3 py-2.5 font-semibold">Username / Email</th>
+                                    <th class="px-3 py-2.5 font-semibold">Jalur</th>
+                                    <th class="px-5 py-2.5 font-semibold">IP</th>
+                                </tr>
+                            </thead>
+                            <tbody id="login-logs-body" class="divide-y divide-line"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div id="tab-settings" class="tab-content hidden space-y-6">
+                <div>
+                    <p class="text-[11px] font-medium tracking-[0.1em] uppercase text-gold">Terminal Tipe A Tirtonadi · Settings</p>
+                    <h2 class="text-[28px] leading-tight font-semibold text-ink mt-1">Manajemen &amp; Konfigurasi Sistem</h2>
+                    <p class="text-[13px] text-slate-500 mt-1">Pengaturan akun operator, threshold deteksi, dan koneksi stream</p>
+                </div>
+
+                <div class="grid grid-cols-1 gap-5 max-w-xl">
+                    <div class="p-6 bg-white border border-line rounded-xl space-y-4">
+                        <h3 class="text-[15px] font-semibold text-ink">Informasi Akun Operator</h3>
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <label class="block text-slate-500 mb-1">Nama Operator</label>
+                                <input type="text" value="Operator Tirto Sarana" class="w-full bg-white border border-line rounded-lg p-2.5 text-ink focus:outline-none focus:border-[#315f8c]">
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 mb-1">Role Permission</label>
+                                <input type="text" value="Super Admin / IT Security" disabled class="w-full bg-slate-50 border border-line rounded-lg p-2.5 text-slate-500 cursor-not-allowed">
+                            </div>
+                            <button class="bg-btn hover:bg-btnHover text-white font-semibold py-2.5 px-4 rounded-lg transition text-xs">Simpan Perubahan</button>
+                        </div>
+                    </div>
+
+                    <div class="p-6 bg-white border border-line rounded-xl space-y-4">
+                        <h3 class="text-[15px] font-semibold text-ink">Engine RTSP &amp; Model YOLO</h3>
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <label class="block text-slate-500 mb-1">RTSP Stream Port / Mode</label>
+                                <input type="text" value="TCP Mode (Buffer 1 frame)" disabled class="w-full bg-slate-50 border border-line rounded-lg p-2.5 text-slate-500">
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 mb-1">Active Model Weights</label>
+                                <input type="text" value="yolov8n.pt (Nano Model - CPU Optimized)" disabled class="w-full bg-slate-50 border border-line rounded-lg p-2.5 text-slate-500">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <footer class="flex flex-col sm:flex-row sm:justify-between gap-1 pt-2 text-[11px] text-slate-500">
+                <span>Kementerian Perhubungan · Kantor Terminal Tipe A Tirtonadi</span>
+                <span>Data pemantauan orang berbasis CCTV</span>
+            </footer>
+
+        </main>
+    </div>
+
+<!-- MODAL RIWAYAT PENCARIAN ID ORANG (Kebutuhan #3) -->
+    <div id="person-history-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white border border-line rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between p-5 border-b border-line">
+                <div>
+                    <h3 class="text-sm font-bold text-ink">Riwayat Target ID <span id="modal-person-id" class="text-[#315f8c]"></span></h3>
+                    <p id="modal-person-summary" class="text-[11px] text-slate-500 mt-0.5"></p>
+                </div>
+                <button onclick="closePersonModal()" class="text-slate-500 hover:text-ink">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-5 overflow-y-auto flex-1 space-y-4">
+                <!-- Foto terbaru orang ini (screenshot otomatis saat terekam kamera) -->
+                <div id="modal-latest-snapshot-wrap" class="hidden">
+                    <p class="text-[10px] text-slate-500 font-semibold mb-1.5">FOTO TERBARU TEREKAM</p>
+                    <img id="modal-latest-snapshot" class="w-full max-h-56 object-contain rounded-xl border border-line bg-black" src="" alt="Screenshot Target">
+                </div>
+
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="text-slate-500 border-b border-line">
+                            <th class="py-2 font-semibold">Waktu</th>
+                            <th class="py-2 font-semibold">Status</th>
+                            <th class="py-2 font-semibold">Kamera</th>
+                            <th class="py-2 font-semibold">Foto</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-history-tbody" class="divide-y divide-line text-slate-600"></tbody>
+                </table>
+            </div>
+            {% if is_admin %}
+            <div class="p-5 border-t border-line flex gap-3">
+                <button id="modal-track-btn" onclick="trackCurrentPerson()" class="flex-1 bg-btn hover:bg-btnHover text-white font-bold py-2.5 rounded-xl transition text-xs flex items-center justify-center gap-2">
+                    <i data-lucide="crosshair" class="w-3.5 h-3.5"></i> Tandai di Live Feed
+                </button>
+                <button id="modal-untrack-btn" onclick="untrackPerson()" class="hidden flex-1 bg-white border border-line hover:bg-slate-50 text-slate-700 font-bold py-2.5 rounded-xl transition text-xs">
+                    Lepas Tanda
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- MODAL LAPORAN HISTORI (default 30 hari terakhir; Export XLSX = data yang sama) -->
+    <div id="report-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white border border-line rounded-2xl w-full max-w-3xl max-h-[88vh] flex flex-col">
+            <div class="flex items-center justify-between p-5 border-b border-line">
+                <div>
+                    <h3 class="text-sm font-bold text-ink">Laporan People Counting</h3>
+                    <p id="report-period-label" class="text-[11px] text-slate-500 mt-0.5">Memuat...</p>
+                </div>
+                <button onclick="closeReportModal()" class="text-slate-500 hover:text-ink">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-5 border-b border-line flex flex-wrap items-end gap-3">
+                <div>
+                    <label class="block text-[10px] font-semibold text-slate-500 mb-1">Tanggal Mulai</label>
+                    <input id="report-start" type="date" class="bg-white border border-line rounded-lg px-3 py-2 text-xs text-ink">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-semibold text-slate-500 mb-1">Tanggal Akhir</label>
+                    <input id="report-end" type="date" class="bg-white border border-line rounded-lg px-3 py-2 text-xs text-ink">
+                </div>
+                <button type="button" onclick="loadReport()" class="bg-btn hover:bg-btnHover text-white font-bold px-4 py-2 rounded-xl transition text-xs">
+                    Tampilkan Laporan
+                </button>
+                {% if is_admin %}
+                <button type="button" onclick="exportReport()" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-4 py-2 rounded-xl transition text-xs flex items-center gap-2">
+                    <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Export XLSX
+                </button>
+                {% endif %}
+            </div>
+            <div class="p-5 overflow-y-auto flex-1">
+                <p id="report-msg" class="hidden text-xs text-center py-8"></p>
+                <table id="report-table" class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="text-slate-500 border-b border-line">
+                            <th class="py-2 font-semibold">No</th>
+                            <th class="py-2 font-semibold">Tanggal</th>
+                            <th class="py-2 font-semibold">Kamera</th>
+                            <th class="py-2 font-semibold text-right">Masuk</th>
+                            <th class="py-2 font-semibold text-right">Keluar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="report-tbody" class="divide-y divide-line text-slate-600"></tbody>
+                </table>
+            </div>
+            <div class="p-5 border-t border-line flex justify-end gap-8 text-xs">
+                <span class="text-slate-500 font-semibold">TOTAL MASUK <b id="report-total-in" class="text-emerald-600 font-mono ml-1">0</b></span>
+                <span class="text-slate-500 font-semibold">TOTAL KELUAR <b id="report-total-out" class="text-amber-600 font-mono ml-1">0</b></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL SCREENSHOT CEPAT (dari menu titik-tiga di Recent Logs) -->
+    <div id="snapshot-quick-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white border border-line rounded-2xl w-full max-w-md">
+            <div class="flex items-center justify-between p-5 border-b border-line">
+                <h3 class="text-sm font-bold text-ink">Screenshot Target <span id="snap-modal-id" class="text-[#315f8c]"></span></h3>
+                <button onclick="closeSnapshotModal()" class="text-slate-500 hover:text-ink">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-3">
+                <img id="snap-modal-image" class="w-full max-h-72 object-contain rounded-xl border border-line bg-black" src="" alt="Screenshot Target">
+                <p id="snap-modal-caption" class="text-[11px] text-slate-500 text-center"></p>
+            </div>
+            <div class="p-5 border-t border-line flex gap-3">
+                <button onclick="copyIdFromSnapshot()" class="flex-1 bg-white border border-line hover:bg-slate-50 text-slate-700 font-bold py-2.5 rounded-xl transition text-xs flex items-center justify-center gap-2">
+                    <i data-lucide="copy" class="w-3.5 h-3.5"></i> Salin ID
+                </button>
+                <button onclick="searchIdFromSnapshot()" class="flex-1 bg-btn hover:bg-btnHover text-white font-bold py-2.5 rounded-xl transition text-xs flex items-center justify-center gap-2">
+                    <i data-lucide="search" class="w-3.5 h-3.5"></i> Lihat Riwayat & Lacak
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT TAB ROUTING, CHART & REALTIME UPDATES -->
+    <script>
+        // Flag anti-numpuk polling. HARUS dideklarasikan di atas: updateStats()/loadCameras()
+        // dipanggil lebih awal di script ini (kalau `let` ada di bawah -> ReferenceError/TDZ).
+        let statsBusy = false;
+        let camerasBusy = false;
+
+        lucide.createIcons();
+
+        // TAB SWITCHING LOGIC
+        const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById('tab-' + tabName).classList.remove('hidden');
+
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('bg-navyActive', 'text-white', 'border-gold');
+                el.classList.add('text-[#c3cfdd]', 'border-transparent');
+            });
+
+            const activeBtn = document.getElementById('nav-' + tabName);
+            activeBtn.classList.add('bg-navyActive', 'text-white', 'border-gold');
+            activeBtn.classList.remove('text-[#c3cfdd]', 'border-transparent');
+            if (typeof syncGridStreams === 'function') syncGridStreams();
+            // Popup live di denah hanya boleh menyala selama tab Zones terbuka
+            if (tabName !== 'zones' && typeof closeZoneMapPopup === 'function') closeZoneMapPopup();
+            if (tabName === 'zones' && typeof renderZoneMap === 'function') renderZoneMap(window.camerasCache);
+            if (tabName === 'users' && typeof loadUsersTab === 'function') loadUsersTab();
+        }
+
+        // ==============================================================
+        // FILTER CCTV DASHBOARD
+        // selectedCamId: null = semua CCTV, angka = id kamera tertentu.
+        // Opsi dropdown dibangun ulang dari /api/cameras tiap polling, jadi
+        // CCTV baru yang ditambahkan otomatis muncul tanpa edit kode.
+        // ==============================================================
+        let selectedCamId = null;
+        function camQuery(prefix) {
+            return selectedCamId ? `${prefix}camera_id=${selectedCamId}` : '';
+        }
+
+        function onCamFilterChange(val) {
+            selectedCamId = val ? parseInt(val, 10) : null;
+            document.getElementById('cam-filter-select').value = selectedCamId ? String(selectedCamId) : '';
+            document.getElementById('cam-filter-reset').classList.toggle('hidden', !selectedCamId);
+            // Refresh semua widget sekarang juga, tanpa nunggu interval
+            updateStats();
+            updateChart();
+            updatePeakHour();
+            if (window.camerasCache) {
+                renderZoneOccupancy(window.camerasCache);
+                updateDashboardLiveFeed(window.camerasCache);
+                renderCamFilterOptions(window.camerasCache);
+                renderCamBreakdown(window.camerasCache);
+            }
+        }
+
+        function renderCamFilterOptions(cameras) {
+            const sel = document.getElementById('cam-filter-select');
+            const list = cameras || [];
+
+            // Kalau CCTV yang sedang difilter sudah dihapus -> kembali ke "Semua"
+            if (selectedCamId && !list.some(c => c.id === selectedCamId)) {
+                selectedCamId = null;
+                document.getElementById('cam-filter-reset').classList.add('hidden');
+                updateStats(); updateChart(); updatePeakHour();
+            }
+
+            const sig = list.map(c => `${c.id}|${c.name}|${c.is_streaming ? 1 : 0}`).join(';');
+            if (sel.dataset.sig !== sig) {
+                sel.dataset.sig = sig;
+                const sorted = [...list].sort((a, b) => a.id - b.id);
+                sel.innerHTML = '<option value="">Semua CCTV</option>' + sorted.map(c =>
+                    `<option value="${c.id}">${escapeHtml(c.name)}${c.is_streaming ? '' : ' (offline)'}</option>`
+                ).join('');
+            }
+            sel.value = selectedCamId ? String(selectedCamId) : '';
+
+            const summary = document.getElementById('cam-filter-summary');
+            const cur = list.find(c => c.id === selectedCamId);
+            summary.innerText = cur
+                ? `${cur.name} · ${cur.location || ''}`
+                : `Menampilkan semua CCTV · ${list.length} unit`;
+        }
+
+        function renderCamBreakdown(cameras) {
+            const body = document.getElementById('cam-breakdown-body');
+            const list = [...(cameras || [])].sort((a, b) => a.id - b.id);
+            document.getElementById('cam-breakdown-count').innerText = `${list.length} CCTV`;
+
+            if (list.length === 0) {
+                body.innerHTML = '<tr><td colspan="8" class="py-4 text-center text-slate-500 italic">Belum ada CCTV terdaftar.</td></tr>';
+                return;
+            }
+            body.innerHTML = list.map(c => {
+                const cin = c.count_in || 0, cout = c.count_out || 0;
+                const isSel = c.id === selectedCamId;
+                const status = c.is_streaming
+                    ? '<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-wide bg-emerald-50 text-emerald-700"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>ONLINE</span>'
+                    : '<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-wide bg-slate-100 text-slate-500"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>OFFLINE</span>';
+                return `
+                    <tr onclick="onCamFilterChange('${c.id}')" class="cursor-pointer hover:bg-slate-50 transition ${isSel ? 'bg-[#fcf6e7]/60' : ''}">
+                        <td class="py-3.5 font-semibold text-ink"><span class="inline-flex items-center gap-2"><i data-lucide="cctv" class="w-4 h-4 text-gold"></i>${escapeHtml(c.name)}</span></td>
+                        <td class="py-3.5 text-slate-500">${escapeHtml(c.location || '-')}</td>
+                        <td class="py-3.5">${status}</td>
+                        <td class="py-3.5 text-right font-medium text-emerald-600">${cin}</td>
+                        <td class="py-3.5 text-right font-medium text-amber-600">${cout}</td>
+                        <td class="py-3.5 text-right font-medium text-ink">${Math.max(0, cin - cout)}</td>
+                        <td class="py-3.5 text-right font-medium text-ink">${cin + cout}</td>
+                        <td class="py-3.5 text-right text-slate-400"><i data-lucide="chevron-right" class="w-4 h-4 inline-block"></i></td>
+                    </tr>`;
+            }).join('');
+            try { lucide.createIcons(); } catch (e) { console.warn('lucide:', e); }
+        }
+
+        // CHART.JS INITIALIZATION (mulai kosong, diisi data ASLI dari /api/hourly_traffic)
+        const ctx = document.getElementById('trafficChart').getContext('2d');
+        const trafficChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Masuk',
+                        data: [],
+                        borderColor: '#315f8c',
+                        backgroundColor: 'rgba(49, 95, 140, 0.08)',
+                        tension: 0.4,
+                        fill: true,
+                        borderWidth: 2,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Keluar',
+                        data: [],
+                        borderColor: '#c49932',
+                        backgroundColor: 'transparent',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 400 },
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        border: { color: '#e1e7ee' },
+                        ticks: { color: '#8b98a9', font: { size: 10 }, maxTicksLimit: 10, maxRotation: 0 }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#e8edf3' },
+                        border: { display: false },
+                        ticks: { color: '#8b98a9', font: { size: 10 }, precision: 0 }
+                    }
+                }
+            }
+        });
+
+        // Ambil data grafik REALTIME dari database (Kebutuhan #1)
+        function updateChart() {
+            fetch('/api/hourly_traffic' + camQuery('?'))
+                .then(res => res.json())
+                .then(data => {
+                    trafficChart.data.labels = data.labels;
+                    trafficChart.data.datasets[0].data = data.in_data;
+                    trafficChart.data.datasets[1].data = data.out_data;
+                    trafficChart.update();
+                })
+                .catch(err => console.error(err));
+        }
+
+        // ==============================================================
+        // PROFILE DROPDOWN & LOGOUT (Kebutuhan #2)
+        // ==============================================================
+        function toggleProfileMenu() {
+            document.getElementById('profile-menu-dropdown').classList.toggle('hidden');
+        }
+        document.addEventListener('click', function (e) {
+            const menu = document.getElementById('profile-menu-dropdown');
+            const btn = document.getElementById('profile-menu-btn');
+            if (!menu.contains(e.target) && !btn.contains(e.target)) {
+                menu.classList.add('hidden');
+            }
+        });
+
+        // ==============================================================
+        // SEARCH ENGINE + PENCARIAN TARGET ID (Kebutuhan #3 & #4)
+        // ==============================================================
+        let searchDebounce = null;
+        let currentSearchedPersonId = null;
+
+        const searchInput = document.getElementById('global-search-input');
+        const searchDropdown = document.getElementById('search-results-dropdown');
+        const searchClearBtn = document.getElementById('global-search-clear');
+
+        searchInput.addEventListener('input', function () {
+            const q = this.value.trim();
+            searchClearBtn.classList.toggle('hidden', q.length === 0);
+            clearTimeout(searchDebounce);
+            if (q.length === 0) {
+                searchDropdown.classList.add('hidden');
+                return;
+            }
+            searchDebounce = setTimeout(() => runSearch(q), 300);
+        });
+
+        function clearSearch() {
+            searchInput.value = '';
+            searchClearBtn.classList.add('hidden');
+            searchDropdown.classList.add('hidden');
+        }
+
+        function runSearch(q) {
+            fetch('/api/search?q=' + encodeURIComponent(q))
+                .then(res => res.json())
+                .then(data => renderSearchResults(data))
+                .catch(err => console.error(err));
+        }
+
+        function renderSearchResults(data) {
+            searchDropdown.innerHTML = '';
+            searchDropdown.classList.remove('hidden');
+
+            if (data.type === 'person') {
+                if (!data.found) {
+                    searchDropdown.innerHTML = `<div class="p-3 text-slate-500 text-center">Target ID <b>${data.person_id}</b> belum pernah tercatat.</div>`;
+                    return;
+                }
+                const item = document.createElement('div');
+                item.className = 'p-3 rounded-lg hover:bg-slate-100 cursor-pointer flex items-center justify-between';
+                item.innerHTML = `
+                    <div>
+                        <p class="font-bold text-ink">#Target-${data.person_id}</p>
+                        <p class="text-[10px] text-slate-500">${data.total_events} event • Terakhir: ${data.last_seen}</p>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
+                `;
+                item.onclick = () => openPersonModal(data);
+                searchDropdown.appendChild(item);
+                lucide.createIcons();
+                return;
+            }
+
+            // Hasil pencarian teks: kamera & zona
+            let hasResult = false;
+            if (data.cameras && data.cameras.length > 0) {
+                hasResult = true;
+                data.cameras.forEach(cam => {
+                    const item = document.createElement('div');
+                    item.className = 'p-3 rounded-lg hover:bg-slate-100 cursor-pointer';
+                    item.innerHTML = `
+                        <p class="font-bold text-ink flex items-center gap-2"><i data-lucide="video" class="w-3.5 h-3.5 text-[#315f8c]"></i> ${cam.name}</p>
+                        <p class="text-[10px] text-slate-500 ml-5">${cam.location}</p>
+                    `;
+                    item.onclick = () => { switchTab('live-cameras'); searchDropdown.classList.add('hidden'); };
+                    searchDropdown.appendChild(item);
+                });
+            }
+            if (data.zones && data.zones.length > 0) {
+                hasResult = true;
+                data.zones.forEach(zone => {
+                    const item = document.createElement('div');
+                    item.className = 'p-3 rounded-lg hover:bg-slate-100 cursor-pointer';
+                    item.innerHTML = `<p class="font-bold text-ink flex items-center gap-2"><i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-600"></i> ${zone}</p>`;
+                    item.onclick = () => { switchTab('zones'); searchDropdown.classList.add('hidden'); };
+                    searchDropdown.appendChild(item);
+                });
+            }
+            if (!hasResult) {
+                searchDropdown.innerHTML = `<div class="p-3 text-slate-500 text-center">Tidak ada hasil untuk pencarian ini.</div>`;
+            } else {
+                lucide.createIcons();
+            }
+        }
+
+        // --- MODAL LAPORAN HISTORI ---
+        // Laporan & Export XLSX memakai parameter yang sama (start_date/end_date) dan
+        // endpoint yang berbagi satu sumber data di server, jadi isinya selalu identik.
+        function reportEsc(v) {
+            return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        function openReportModal() {
+            document.getElementById('report-modal').classList.remove('hidden');
+            // Tiap dibuka = default dinamis dari server (hari ini & 30 hari sebelumnya)
+            document.getElementById('report-start').value = '';
+            document.getElementById('report-end').value = '';
+            loadReport();
+        }
+
+        function closeReportModal() {
+            document.getElementById('report-modal').classList.add('hidden');
+        }
+
+        function loadReport() {
+            const startEl = document.getElementById('report-start');
+            const endEl = document.getElementById('report-end');
+            const msg = document.getElementById('report-msg');
+            const params = new URLSearchParams();
+            if (startEl.value) params.set('start_date', startEl.value);
+            if (endEl.value) params.set('end_date', endEl.value);
+            return fetch('/api/report?' + params.toString())
+                .then(res => res.json().then(d => { if (!res.ok) throw new Error(d.message || 'Gagal memuat laporan'); return d; }))
+                .then(data => {
+                    startEl.value = data.start_date;   // server menormalkan (default / tukar bila terbalik)
+                    endEl.value = data.end_date;
+                    document.getElementById('report-period-label').innerText = 'Periode: ' + data.period_label;
+                    document.getElementById('report-tbody').innerHTML = data.rows.map(r =>
+                        `<tr><td class="py-2">${r.no}</td><td class="py-2 font-mono">${reportEsc(r.tanggal_label)}</td>` +
+                        `<td class="py-2">${reportEsc(r.kamera)}</td>` +
+                        `<td class="py-2 text-right font-mono text-emerald-600">${r.masuk}</td>` +
+                        `<td class="py-2 text-right font-mono text-amber-600">${r.keluar}</td></tr>`).join('');
+                    document.getElementById('report-total-in').innerText = data.total_masuk;
+                    document.getElementById('report-total-out').innerText = data.total_keluar;
+                    document.getElementById('report-table').classList.toggle('hidden', !data.has_data);
+                    msg.className = data.has_data ? 'hidden' : 'text-xs text-center py-8 text-slate-500';
+                    msg.innerText = data.has_data ? '' : 'Tidak ada data pada periode ini.';
+                    return true;
+                })
+                .catch(err => {
+                    document.getElementById('report-table').classList.add('hidden');
+                    msg.className = 'text-xs text-center py-8 text-rose-600';
+                    msg.innerText = 'Gagal memuat laporan: ' + err.message;
+                    return false;
+                });
+        }
+
+        // Export selalu memuat ulang laporan dulu -> yang di-export == yang tampil di layar
+        function exportReport() {
+            loadReport().then(ok => {
+                if (!ok) return;
+                const q = new URLSearchParams({
+                    start_date: document.getElementById('report-start').value,
+                    end_date: document.getElementById('report-end').value
+                });
+                window.location.href = '/export_excel?' + q.toString();
+            });
+        }
+
+        // --- MODAL RIWAYAT TARGET ID ---
+        function openPersonModal(data) {
+            currentSearchedPersonId = data.person_id;
+            document.getElementById('modal-person-id').innerText = '#' + data.person_id;
+            document.getElementById('modal-person-summary').innerText =
+                `${data.total_events} event terekam • Pertama: ${data.first_seen} • Terakhir: ${data.last_seen}`;
+
+            const snapWrap = document.getElementById('modal-latest-snapshot-wrap');
+            const snapImg = document.getElementById('modal-latest-snapshot');
+            if (data.latest_snapshot) {
+                snapImg.src = data.latest_snapshot;
+                snapWrap.classList.remove('hidden');
+            } else {
+                snapWrap.classList.add('hidden');
+            }
+
+            const tbody = document.getElementById('modal-history-tbody');
+            tbody.innerHTML = data.history.map(h => {
+                const badge = h.status === 'MASUK'
+                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">MASUK</span>'
+                    : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-200">KELUAR</span>';
+                const thumb = h.snapshot_url
+                    ? `<img src="${h.snapshot_url}" class="w-10 h-10 object-cover rounded-lg border border-line cursor-pointer" onclick="openSnapshotQuick(${data.person_id}, '${h.snapshot_url}', '${h.timestamp}', '${h.status}')">`
+                    : '<span class="text-slate-400">-</span>';
+                return `<tr><td class="py-2 font-mono">${h.timestamp}</td><td class="py-2">${badge}</td><td class="py-2">CAM-${h.camera_id || 1}</td><td class="py-2">${thumb}</td></tr>`;
+            }).join('');
+
+            document.getElementById('person-history-modal').classList.remove('hidden');
+            document.getElementById('search-results-dropdown').classList.add('hidden');
+        }
+
+        function closePersonModal() {
+            document.getElementById('person-history-modal').classList.add('hidden');
+        }
+
+        function trackCurrentPerson() {
+            if (!currentSearchedPersonId) return;
+            fetch('/api/track_person', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ person_id: currentSearchedPersonId })
+            }).then(() => {
+                document.getElementById('modal-track-btn').classList.add('hidden');
+                document.getElementById('modal-untrack-btn').classList.remove('hidden');
+                switchTab('live-cameras');
+                closePersonModal();
+            });
+        }
+
+        function untrackPerson() {
+            fetch('/api/track_person', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ person_id: null })
+            }).then(() => {
+                document.getElementById('modal-track-btn').classList.remove('hidden');
+                document.getElementById('modal-untrack-btn').classList.add('hidden');
+            });
+        }
+
+        // ==============================================================
+        // STATUS SESI COUNTING OTOMATIS (Kebutuhan #6 & #7)
+        // ==============================================================
+        function formatDuration(totalSeconds) {
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }
+
+        function updateSessionStatus() {
+            fetch('/api/session_status')
+                .then(res => res.json())
+                .then(data => {
+                    const banner = document.getElementById('session-status-banner');
+                    const textEl = document.getElementById('session-status-text');
+                    const timerEl = document.getElementById('session-status-timer');
+                    banner.classList.remove('hidden');
+
+                    if (data.active) {
+                        banner.className = 'px-4 py-2.5 rounded-lg border text-xs font-medium flex items-center justify-between bg-emerald-50 border-emerald-200 text-emerald-600';
+                        textEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Sesi penghitungan aktif — laporan otomatis tercatat dalam';
+                    } else {
+                        banner.className = 'px-4 py-2.5 rounded-lg border text-xs font-medium flex items-center justify-between bg-amber-50 border-amber-200 text-amber-600';
+                        textEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> Counting dijeda (laporan baru saja dicetak) — aktif lagi dalam';
+                    }
+                    timerEl.innerText = formatDuration(data.remaining_seconds);
+                })
+                .catch(err => console.error(err));
+        }
+
+        // REALTIME DASHBOARD STATS POLLING
+        function updateStats() {
+            if (statsBusy) return;   // jangan numpuk request kalau yang sebelumnya belum selesai
+            statsBusy = true;
+            fetch('/api/stats' + camQuery('?'), { cache: 'no-store', signal: AbortSignal.timeout(5000) })
+                .then(res => res.json())
+                .then(data => {
+                    const totalToday = data.count_in + data.count_out;
+                    document.getElementById('stat-total-today').innerText = totalToday;
+                    document.getElementById('stat-occupancy').innerText = data.total_inside;
+
+                    // Persentase kapasitas: dari max_capacity kamera (atau total semua kamera)
+                    const cap = data.capacity || 100;
+                    document.getElementById('stat-capacity').innerText = '/ ' + cap;
+                    const percent = Math.min(100, Math.round((data.total_inside / cap) * 100));
+                    document.getElementById('stat-threshold').innerText = percent + "% dari ambang kapasitas";
+
+                    // Kartu Active Cameras (dulu hardcode 1/1)
+                    document.getElementById('stat-active-cams').innerText = data.active_cameras;
+                    document.getElementById('stat-total-cams').innerText = `/ ${data.total_cameras}`;
+                    const sub = document.getElementById('stat-active-cams-sub');
+                    if (selectedCamId) {
+                        sub.innerText = data.active_cameras > 0 ? 'CCTV terpilih Online' : 'CCTV terpilih Offline';
+                        sub.className = 'text-[11px] font-semibold mt-1 ' + (data.active_cameras > 0 ? 'text-emerald-600' : 'text-slate-500');
+                    } else {
+                        sub.innerText = `${data.active_cameras} dari ${data.total_cameras} CCTV online`;
+                        sub.className = 'text-[11px] font-semibold mt-1 ' + (data.active_cameras > 0 ? 'text-emerald-600' : 'text-slate-500');
+                    }
+
+                    // Update Recent Logs Table
+                    const tbody = document.getElementById('recent-logs-table');
+                    if (!data.recent_logs || data.recent_logs.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-slate-500 italic">Belum ada deteksi' + (selectedCamId ? ' di CCTV ini' : '') + '...</td></tr>';
+                    }
+                    if (data.recent_logs && data.recent_logs.length > 0) {
+                        // Kalau ada menu titik-tiga yang sedang dibuka user, JANGAN timpa
+                        // tabel dulu - supaya menu tidak hilang sebelum sempat diklik.
+                        // Tabel akan otomatis lanjut ter-update lagi begitu menu ditutup.
+                        if (openLogMenuId === null) {
+                            window.recentLogsCache = {};
+                            tbody.innerHTML = data.recent_logs.map(log => {
+                                window.recentLogsCache[log.log_id] = log;
+                                const isMasuk = log.status === 'MASUK';
+                                const badge = isMasuk
+                                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide bg-emerald-50 text-emerald-700">MASUK</span>'
+                                    : '<span class="px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide bg-amber-50 text-amber-700">KELUAR</span>';
+
+                                return `
+                                    <tr class="hover:bg-slate-50 transition">
+                                        <td class="py-3 text-slate-500 tabular-nums">${log.time.split(' ')[1]}</td>
+                                        <td class="py-3 font-semibold text-ink">#Target-${log.id}${(!selectedCamId && log.camera_name) ? `<div class="text-[10px] font-normal text-slate-400">${escapeHtml(log.camera_name)}</div>` : ''}</td>
+                                        <td class="py-3">${badge}</td>
+                                        <td class="py-3"><span class="inline-flex items-center gap-1.5 text-emerald-600 font-medium"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Selesai</span></td>
+                                        <td class="py-3 text-right relative">
+                                            <button onclick="toggleLogMenu(${log.log_id}, event)" class="p-1 text-slate-400 hover:text-ink rounded hover:bg-slate-100">
+                                                <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                                            </button>
+                                            <div id="log-menu-${log.log_id}" class="hidden absolute right-0 top-8 w-44 bg-white border border-line rounded-xl shadow-xl z-50 py-1.5 text-left">
+                                                <button onclick="viewLogSnapshot(${log.log_id})" class="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-slate-600 hover:bg-slate-50 hover:text-ink transition">
+                                                    <i data-lucide="image" class="w-3.5 h-3.5"></i> Lihat Screenshot
+                                                </button>
+                                                <button onclick="copyLogId(${log.id})" class="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-slate-600 hover:bg-slate-50 hover:text-ink transition">
+                                                    <i data-lucide="copy" class="w-3.5 h-3.5"></i> Salin ID
+                                                </button>
+                                                <button onclick="searchLogId(${log.id})" class="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-slate-600 hover:bg-slate-50 hover:text-ink transition">
+                                                    <i data-lucide="search" class="w-3.5 h-3.5"></i> Lihat Riwayat & Lacak
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('');
+                            lucide.createIcons();
+                        }
+                    }
+                })
+                .catch(err => console.error(err))
+                .finally(() => { statsBusy = false; });
+        }
+
+        // ==============================================================
+        // MENU TITIK-TIGA DI RECENT LOGS (screenshot otomatis per event)
+        // ==============================================================
+        // Menyimpan menu mana yang sedang terbuka, supaya TIDAK hilang saat
+        // updateStats() me-refresh tabel tiap 1 detik (dulu ini penyebab
+        // menu langsung tertutup/hilang begitu cepat dibuka).
+        let openLogMenuId = null;
+
+        function toggleLogMenu(logId, event) {
+            event.stopPropagation();
+            const isCurrentlyOpen = (openLogMenuId === logId);
+            document.querySelectorAll('[id^="log-menu-"]').forEach(el => el.classList.add('hidden'));
+
+            if (isCurrentlyOpen) {
+                openLogMenuId = null;
+            } else {
+                const menu = document.getElementById(`log-menu-${logId}`);
+                if (menu) menu.classList.remove('hidden');
+                openLogMenuId = logId;
+            }
+        }
+
+        // Hanya tutup menu kalau user klik BENAR-BENAR di luar area menu/tombolnya
+        document.addEventListener('click', function (e) {
+            if (e.target.closest('[id^="log-menu-"]') || e.target.closest('button[onclick^="toggleLogMenu"]')) {
+                return;
+            }
+            document.querySelectorAll('[id^="log-menu-"]').forEach(el => el.classList.add('hidden'));
+            openLogMenuId = null;
+        });
+
+        function viewLogSnapshot(logId) {
+            openLogMenuId = null;
+            const log = window.recentLogsCache[logId];
+            if (!log) return;
+            openSnapshotQuick(log.id, log.snapshot_url, log.time, log.status);
+        }
+
+        function copyLogId(personId) {
+            openLogMenuId = null;
+            navigator.clipboard.writeText(String(personId)).then(() => {
+                alert(`ID Target #${personId} disalin ke clipboard.`);
+            }).catch(() => {
+                alert(`ID Target: ${personId}`);
+            });
+        }
+
+        function searchLogId(personId) {
+            openLogMenuId = null;
+            document.getElementById('global-search-input').value = personId;
+            document.getElementById('global-search-clear').classList.remove('hidden');
+            runSearch(String(personId));
+        }
+
+        // --- MODAL SCREENSHOT CEPAT ---
+        let currentSnapshotPersonId = null;
+
+        function openSnapshotQuick(personId, snapshotUrl, timestamp, status) {
+            currentSnapshotPersonId = personId;
+            document.getElementById('snap-modal-id').innerText = '#' + personId;
+            const img = document.getElementById('snap-modal-image');
+            const caption = document.getElementById('snap-modal-caption');
+
+            if (snapshotUrl) {
+                img.src = snapshotUrl;
+                caption.innerText = `${status} • ${timestamp}`;
+            } else {
+                img.src = '';
+                caption.innerText = 'Screenshot belum tersedia untuk event ini.';
+            }
+            document.getElementById('snapshot-quick-modal').classList.remove('hidden');
+        }
+
+        function closeSnapshotModal() {
+            document.getElementById('snapshot-quick-modal').classList.add('hidden');
+        }
+
+        function copyIdFromSnapshot() {
+            if (currentSnapshotPersonId == null) return;
+            copyLogId(currentSnapshotPersonId);
+        }
+
+        function searchIdFromSnapshot() {
+            if (currentSnapshotPersonId == null) return;
+            closeSnapshotModal();
+            document.getElementById('global-search-input').value = currentSnapshotPersonId;
+            document.getElementById('global-search-clear').classList.remove('hidden');
+            runSearch(String(currentSnapshotPersonId));
+        }
+
+        setInterval(updateStats, 1000);
+        setInterval(updateChart, 5000);
+        setInterval(updateSessionStatus, 5000);
+        setInterval(loadCameras, 4000);
+        setInterval(updatePeakHour, 15000);
+        updateStats();
+        updateChart();
+        updateSessionStatus();
+        loadCameras();
+        updatePeakHour();
+
+        // ==============================================================
+        // PEAK HOUR REALTIME (Kebutuhan #5 — dulu dummy "13:00 - 14:00")
+        // ==============================================================
+        function updatePeakHour() {
+            fetch('/api/peak_hour' + camQuery('?'))
+                .then(res => res.json())
+                .then(data => {
+                    const elMain = document.getElementById('stat-peak-hour');
+                    const elSub = document.getElementById('stat-peak-hour-sub');
+                    if (data.has_data) {
+                        elMain.innerText = String(data.range).replace(/\s*-\s*/, ' – ');
+                        elSub.innerText = `${data.total} orang masuk pada jam ini`;
+                    } else {
+                        elMain.innerText = '-';
+                        elSub.innerText = 'Belum ada data hari ini';
+                    }
+                })
+                .catch(err => console.error(err));
+        }
+
+        // ==============================================================
+        // CRUD KAMERA CCTV — Live Cameras (kamera baru otomatis counting)
+        // ==============================================================
+        function loadCameras() {
+            if (camerasBusy) return;
+            camerasBusy = true;
+            fetch('/api/cameras', { cache: 'no-store', signal: AbortSignal.timeout(8000) })
+                .then(res => res.json())
+                .then(cameras => {
+                    window.camerasCache = cameras;
+                    renderCameraGrid(cameras);
+                    renderCamFilterOptions(cameras);
+                    renderCamBreakdown(cameras);
+                    renderZoneOccupancy(cameras);
+                    renderZoneMap(cameras);
+                    updateDashboardLiveFeed(cameras);
+                })
+                .catch(err => console.error(err))
+                .finally(() => { camerasBusy = false; });
+        }
+
+        // --- LIVE FEEDS DI DASHBOARD (selalu ikut kamera yang BENAR-BENAR online) ---
+        let dashboardFeedCamId = null;
+        function formatLiveStamp() {
+            const d = new Date(), p = n => String(n).padStart(2, '0');
+            return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}, ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+        }
+
+        function updateDashboardLiveFeed(cameras) {
+            const img = document.getElementById('dashboard-live-feed-img');
+            const empty = document.getElementById('dashboard-live-feed-empty');
+            const nameEl = document.getElementById('dashboard-live-feed-name');
+            const metaEl = document.getElementById('dashboard-live-feed-meta');
+            const infoEl = document.getElementById('dashboard-live-feed-info');
+
+            const online = selectedCamId
+                ? (cameras || []).find(c => c.id === selectedCamId && c.is_streaming)
+                : (cameras || []).find(c => c.is_streaming);
+            if (!online) {
+                img.classList.add('hidden');
+                empty.classList.remove('hidden');
+                infoEl.classList.add('hidden');
+                nameEl.innerText = '-';
+                metaEl.innerText = '';
+                dashboardFeedCamId = null;
+                return;
+            }
+
+            nameEl.innerText = online.name;
+            metaEl.innerText = `Zona ${online.location || '-'} · ${formatLiveStamp()}`;
+            infoEl.classList.remove('hidden');
+            empty.classList.add('hidden');
+            img.classList.remove('hidden');
+            // Cuma ganti src kalau kameranya beda (biar stream tidak restart2 tiap 4 detik)
+            if (dashboardFeedCamId !== online.id) {
+                dashboardFeedCamId = online.id;
+                img.src = `/video_feed/${online.id}`;
+            }
+        }
+
+
+        // ==============================================================
+        // ZONES — DENAH TERMINAL + TITIK CCTV (drag & drop, popup live)
+        // Semua data dibaca dari window.camerasCache (hasil /api/cameras),
+        // jadi kamera baru otomatis muncul & kamera yang dihapus otomatis
+        // hilang tanpa edit kode. Posisi disimpan ke kolom map_x/map_y.
+        // ==============================================================
+        let zoneMapEdit = false;
+        let zoneMapPopupCamId = null;
+        let zoneMapDrag = null;       // {camId, el, moved}
+        const zoneMapPending = {};    // posisi sementara selama/ sesaat setelah drag
+        const zoneMapDraft = {};      // perubahan posisi yang belum di-Apply: {camId: {x, y}}
+
+        function zoneMapDefaultPos(index, total) {
+            // Kamera yang belum punya posisi ditaruh berderet di strip atas denah
+            // (area kosong di atas jalan) supaya langsung kelihatan & mudah diseret.
+            const cols = Math.max(total, 1);
+            return { x: Math.min(0.96, 0.05 + index * 0.045), y: 0.05 };
+        }
+
+        function zoneMapOccColor(cam) {
+            if (!cam.is_streaming) return { bg: 'bg-slate-400', ring: 'ring-slate-200' };
+            const cap = cam.max_capacity || 100;
+            const pct = Math.round(((cam.occupancy || 0) / cap) * 100);
+            if (pct >= 80) return { bg: 'bg-rose-500', ring: 'ring-rose-200' };
+            if (pct >= 50) return { bg: 'bg-amber-500', ring: 'ring-amber-200' };
+            return { bg: 'bg-emerald-500', ring: 'ring-emerald-200' };
+        }
+
+        function renderZoneMap(cameras) {
+            const layer = document.getElementById('zonemap-markers');
+            if (!layer) return;
+            if (zoneMapDrag) return; // jangan rebuild saat sedang menyeret
+
+            const list = [...(cameras || [])].sort((a, b) => a.id - b.id);
+            const summary = document.getElementById('zonemap-summary');
+            const unplaced = list.filter(c => c.map_x == null || c.map_y == null);
+            const online = list.filter(c => c.is_streaming).length;
+            summary.innerText = `${list.length} unit CCTV · ${online} online` + (unplaced.length ? ` · ${unplaced.length} belum diposisikan` : '');
+
+            let uIdx = 0;
+            layer.innerHTML = list.map(cam => {
+                const hasPos = cam.map_x != null && cam.map_y != null;
+                const pend = zoneMapDraft[cam.id] || zoneMapPending[cam.id];
+                let x, y;
+                if (pend) { x = pend.x; y = pend.y; }
+                else if (hasPos) { x = cam.map_x; y = cam.map_y; }
+                else { const d = zoneMapDefaultPos(uIdx++, unplaced.length); x = d.x; y = d.y; }
+                const isNew = !hasPos && !pend;
+                const isDraft = !!zoneMapDraft[cam.id];
+                const col = isNew ? { bg: 'bg-yellow-400', ring: 'ring-yellow-200' } : zoneMapOccColor(cam);
+                const selected = zoneMapPopupCamId === cam.id ? 'scale-125 z-20' : 'z-10';
+                const cursor = zoneMapEdit ? 'cursor-grab' : 'cursor-pointer';
+                return `
+                    <div class="zm-marker absolute -translate-x-1/2 -translate-y-full flex flex-col items-center ${cursor} ${selected} transition-transform"
+                         data-cam-id="${cam.id}" style="left:${(x * 100).toFixed(3)}%; top:${(y * 100).toFixed(3)}%;"
+                         title="${escapeHtml(cam.name)}">
+                        <span class="${isNew ? 'animate-pulse' : ''} ${isDraft ? 'outline outline-2 outline-dashed outline-[#315f8c] outline-offset-2' : ''} relative flex h-7 w-7 items-center justify-center rounded-full ${col.bg} ring-4 ${col.ring} text-white shadow-md">
+                            <i data-lucide="cctv" class="w-3.5 h-3.5 pointer-events-none"></i>
+                        </span>
+                        <span class="w-0 h-0 border-l-[5px] border-r-[5px] border-t-[7px] border-l-transparent border-r-transparent ${col.bg.replace('bg-', 'border-t-')} -mt-0.5"></span>
+                        <span class="mt-0.5 px-1.5 py-0.5 rounded bg-white/90 border border-line text-[10px] font-semibold text-ink whitespace-nowrap shadow-sm pointer-events-none">${escapeHtml(cam.name)}</span>
+                    </div>`;
+            }).join('');
+            lucide.createIcons();
+
+            // Popup yang sedang terbuka ikut diperbarui angkanya (tanpa restart stream)
+            if (zoneMapPopupCamId) {
+                const cam = list.find(c => c.id === zoneMapPopupCamId);
+                if (!cam) closeZoneMapPopup(); else fillZoneMapPopup(cam, false);
+            }
+        }
+
+        function syncZoneMapEditUI() {
+            const n = Object.keys(zoneMapDraft).length;
+            document.getElementById('zonemap-edit-btn').classList.toggle('hidden', zoneMapEdit);
+            document.getElementById('zonemap-lock-badge').classList.toggle('hidden', zoneMapEdit);
+            document.getElementById('zonemap-cancel-btn').classList.toggle('hidden', !zoneMapEdit);
+            document.getElementById('zonemap-apply-btn').classList.toggle('hidden', !zoneMapEdit);
+            document.getElementById('zonemap-apply-label').innerText = n ? `Apply (${n} perubahan)` : 'Apply';
+            document.getElementById('zonemap-edit-hint').classList.toggle('hidden', !zoneMapEdit);
+            document.getElementById('zonemap-popup-actions').classList.toggle('hidden', !zoneMapEdit);
+        }
+
+        function toggleZoneMapEdit() {
+            // Membuka kunci: mulai sesi atur posisi (draft kosong)
+            zoneMapEdit = true;
+            Object.keys(zoneMapDraft).forEach(k => delete zoneMapDraft[k]);
+            closeZoneMapPopup();
+            syncZoneMapEditUI();
+            renderZoneMap(window.camerasCache);
+        }
+
+        function cancelZoneMapEdit() {
+            Object.keys(zoneMapDraft).forEach(k => delete zoneMapDraft[k]);
+            zoneMapEdit = false;
+            closeZoneMapPopup();
+            syncZoneMapEditUI();
+            renderZoneMap(window.camerasCache);
+        }
+
+        function applyZoneMapEdit() {
+            // Simpan semua perubahan sekaligus lalu KUNCI kembali (titik tidak bisa digeser)
+            const ids = Object.keys(zoneMapDraft);
+            const btn = document.getElementById('zonemap-apply-btn');
+            btn.disabled = true;
+            const jobs = ids.map(id => {
+                const d = zoneMapDraft[id];
+                return fetch(`/api/cameras/${id}/map_position`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ map_x: d.x, map_y: d.y })
+                }).then(r => r.json()).then(res => {
+                    if (res.status !== 'success') throw new Error(res.message || 'gagal');
+                    const cam = (window.camerasCache || []).find(c => c.id === parseInt(id, 10));
+                    if (cam) { cam.map_x = d.x; cam.map_y = d.y; }
+                    delete zoneMapDraft[id];
+                });
+            });
+            Promise.allSettled(jobs).then(results => {
+                btn.disabled = false;
+                const failed = results.filter(r => r.status === 'rejected').length;
+                if (failed) {
+                    // Sebagian gagal: tetap di mode atur, draft yang gagal dipertahankan agar bisa Apply ulang
+                    alert(`${failed} posisi kamera gagal disimpan. Coba klik Apply lagi.`);
+                    syncZoneMapEditUI();
+                    renderZoneMap(window.camerasCache);
+                    return;
+                }
+                zoneMapEdit = false;
+                closeZoneMapPopup();
+                syncZoneMapEditUI();
+                renderZoneMap(window.camerasCache);
+            });
+        }
+
+        function fillZoneMapPopup(cam, restartStream) {
+            document.getElementById('zonemap-popup-name').innerText = cam.name;
+            document.getElementById('zonemap-popup-loc').innerText = cam.location || '-';
+            const cin = cam.count_in || 0, cout = cam.count_out || 0, occ = cam.occupancy || 0;
+            const cap = cam.max_capacity || 100;
+            document.getElementById('zonemap-popup-in').innerText = cin;
+            document.getElementById('zonemap-popup-out').innerText = cout;
+            document.getElementById('zonemap-popup-occ').innerText = occ;
+            const pct = Math.min(100, Math.round((occ / cap) * 100));
+            const bar = document.getElementById('zonemap-popup-bar');
+            bar.style.width = pct + '%';
+            bar.className = 'h-full rounded-full transition-all duration-500 ' + (pct >= 80 ? 'bg-rose-500' : pct >= 50 ? 'bg-amber-500' : 'bg-emerald-500');
+            document.getElementById('zonemap-popup-cap').innerText = `Okupansi ${occ} / ${cap} (${pct}%)`;
+
+            const img = document.getElementById('zonemap-popup-img');
+            const off = document.getElementById('zonemap-popup-offline');
+            if (cam.is_streaming) {
+                off.classList.add('hidden');
+                const want = `/video_feed/${cam.id}`;
+                if (restartStream || img.getAttribute('src') !== want) img.setAttribute('src', want);
+            } else {
+                img.removeAttribute('src');
+                off.classList.remove('hidden');
+            }
+        }
+
+        function placeZoneMapPopup(markerEl) {
+            const stage = document.getElementById('zonemap-stage');
+            const pop = document.getElementById('zonemap-popup');
+            const sr = stage.getBoundingClientRect();
+            const mr = markerEl.getBoundingClientRect();
+            const pw = pop.offsetWidth || 300, ph = pop.offsetHeight || 330;
+            let left = mr.left - sr.left + mr.width / 2 + 16;
+            let top = mr.top - sr.top - ph / 2;
+            if (left + pw > sr.width - 8) left = mr.left - sr.left - pw - 16;   // balik ke kiri kalau mentok kanan
+            left = Math.max(8, left);
+            top = Math.max(8, Math.min(top, sr.height - ph - 8));
+            pop.style.left = left + 'px';
+            pop.style.top = top + 'px';
+        }
+
+        function openZoneMapPopup(camId, markerEl) {
+            const cam = (window.camerasCache || []).find(c => c.id === camId);
+            if (!cam) return;
+            zoneMapPopupCamId = camId;
+            const pop = document.getElementById('zonemap-popup');
+            pop.classList.remove('hidden');
+            fillZoneMapPopup(cam, true);
+            document.getElementById('zonemap-popup-actions').classList.toggle('hidden', !zoneMapEdit);
+            lucide.createIcons();
+            placeZoneMapPopup(markerEl);
+            renderZoneMap(window.camerasCache);
+        }
+
+        function closeZoneMapPopup() {
+            zoneMapPopupCamId = null;
+            const pop = document.getElementById('zonemap-popup');
+            if (!pop) return;
+            pop.classList.add('hidden');
+            // Lepas koneksi stream supaya tidak membebani server/browser
+            document.getElementById('zonemap-popup-img').removeAttribute('src');
+            renderZoneMap(window.camerasCache);
+        }
+
+        function resetZoneMapPosition() {
+            const camId = zoneMapPopupCamId;
+            if (!camId) return;
+            fetch(`/api/cameras/${camId}/map_position`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            }).then(r => r.json()).then(() => {
+                const cam = (window.camerasCache || []).find(c => c.id === camId);
+                if (cam) { cam.map_x = null; cam.map_y = null; }
+                delete zoneMapDraft[camId];
+                closeZoneMapPopup();
+                syncZoneMapEditUI();
+            });
+        }
+
+        // --- Interaksi pointer: klik = buka popup, seret (mode atur) = pindah titik ---
+        (function initZoneMapPointer() {
+            const stage = document.getElementById('zonemap-stage');
+            if (!stage) return;
+
+            stage.addEventListener('pointerdown', e => {
+                const marker = e.target.closest('.zm-marker');
+                if (!marker) return;
+                zoneMapDrag = { camId: parseInt(marker.dataset.camId, 10), el: marker, moved: false, sx: e.clientX, sy: e.clientY };
+                marker.setPointerCapture && marker.setPointerCapture(e.pointerId);
+                if (zoneMapEdit) marker.classList.replace('cursor-grab', 'cursor-grabbing');
+                e.preventDefault();
+            });
+
+            stage.addEventListener('pointermove', e => {
+                if (!zoneMapDrag) return;
+                if (Math.abs(e.clientX - zoneMapDrag.sx) + Math.abs(e.clientY - zoneMapDrag.sy) > 4) zoneMapDrag.moved = true;
+                if (!zoneMapEdit || !zoneMapDrag.moved) return;
+                const r = stage.getBoundingClientRect();
+                const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+                const y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+                zoneMapDrag.el.style.left = (x * 100) + '%';
+                zoneMapDrag.el.style.top = (y * 100) + '%';
+                zoneMapDrag.x = x; zoneMapDrag.y = y;
+                document.getElementById('zonemap-popup').classList.add('hidden');
+            });
+
+            const finish = e => {
+                if (!zoneMapDrag) return;
+                const d = zoneMapDrag;
+                zoneMapDrag = null;
+                if (zoneMapEdit && d.moved && d.x != null) {
+                    zoneMapDraft[d.camId] = { x: d.x, y: d.y };
+                    closeZoneMapPopup();
+                    syncZoneMapEditUI();
+                } else if (!d.moved) {
+                    if (zoneMapPopupCamId === d.camId) closeZoneMapPopup();
+                    else openZoneMapPopup(d.camId, d.el);
+                } else {
+                    renderZoneMap(window.camerasCache);
+                }
+            };
+            stage.addEventListener('pointerup', finish);
+            stage.addEventListener('pointercancel', finish);
+        })();
+
+        // ==============================================================
+        // TAB PENGGUNA (admin): akun terdaftar + riwayat login
+        // ==============================================================
+        function loadUsersTab() {
+            if (!IS_ADMIN) return;
+            Promise.all([
+                fetch('/api/users', { cache: 'no-store' }).then(r => r.json()),
+                fetch('/api/login_logs?limit=100', { cache: 'no-store' }).then(r => r.json())
+            ]).then(([users, logs]) => {
+                const gUsers = users.filter(u => u.role === 'Pengguna');
+                document.getElementById('users-summary').innerText =
+                    `${gUsers.length} pengguna · ${users.length - gUsers.length} admin`;
+                document.getElementById('users-table-body').innerHTML = users.map(u => {
+                    const isUser = u.role === 'Pengguna';
+                    const status = isUser
+                        ? `<button onclick="toggleUserActive(${u.id}, ${u.is_active ? 0 : 1})" class="px-3 py-1 rounded-lg border text-[11px] font-semibold transition ${u.is_active ? 'border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200' : 'border-rose-200 text-rose-700 bg-rose-50 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'}" title="${u.is_active ? 'Klik untuk menonaktifkan' : 'Klik untuk mengaktifkan'}">${u.is_active ? 'Aktif' : 'Nonaktif'}</button>`
+                        : '<span class="text-[11px] text-slate-400">Admin</span>';
+                    return `<tr>
+                        <td class="px-5 py-2.5 font-medium text-ink">${escapeHtml(u.full_name || '-')}</td>
+                        <td class="px-3 py-2.5 text-slate-600">${escapeHtml(u.email || u.username || '-')}</td>
+                        <td class="px-3 py-2.5 text-slate-600">${escapeHtml(u.role)}</td>
+                        <td class="px-3 py-2.5 text-slate-500">${escapeHtml(u.created_at || '-')}</td>
+                        <td class="px-3 py-2.5 text-slate-500">${escapeHtml(u.last_login || '-')}</td>
+                        <td class="px-3 py-2.5 text-slate-500 whitespace-nowrap">${escapeHtml(u.last_ip || '-')}</td>
+                        <td class="px-3 py-2.5 text-right text-slate-600">${u.login_count || 0}</td>
+                        <td class="px-3 py-2.5 text-right">${status}</td>
+                        <td class="px-5 py-2.5 text-right whitespace-nowrap">${isUser ? `<button onclick="resetUserPassword(${u.id})" class="text-[11px] font-semibold text-blue-600 hover:underline mr-3">Reset sandi</button><button onclick="deleteUser(${u.id})" class="text-[11px] font-semibold text-rose-600 hover:underline">Hapus</button>` : ''}</td>
+                    </tr>`;
+                }).join('') || '<tr><td colspan="9" class="px-5 py-6 text-center text-slate-400">Belum ada akun.</td></tr>';
+
+                document.getElementById('login-logs-body').innerHTML = logs.map(l => `<tr>
+                        <td class="px-5 py-2 text-slate-500 whitespace-nowrap">${escapeHtml(l.logged_in_at || '-')}</td>
+                        <td class="px-3 py-2 font-medium text-ink">${escapeHtml(l.full_name || '-')}</td>
+                        <td class="px-3 py-2 text-slate-600">${escapeHtml(l.email || l.username || '-')}</td>
+                        <td class="px-3 py-2 text-slate-600">${l.provider === 'google' ? 'Google' : (l.role === 'Pengguna' ? 'Username' : 'Admin')}</td>
+                        <td class="px-5 py-2 text-slate-500">${escapeHtml(l.ip_address || '-')}</td>
+                    </tr>`).join('') || '<tr><td colspan="5" class="px-5 py-6 text-center text-slate-400">Belum ada riwayat login.</td></tr>';
+            }).catch(err => {
+                document.getElementById('users-summary').innerText = 'Gagal memuat: ' + err.message;
+            });
+        }
+
+        function userApi(url, method, body) {
+            return fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
+                .then(r => r.json()).then(res => { if (res.status !== 'success') throw new Error(res.message || 'gagal'); return res; });
+        }
+
+        function createUser() {
+            const name = document.getElementById('nu-name').value.trim();
+            const username = document.getElementById('nu-username').value.trim();
+            const password = document.getElementById('nu-password').value;
+            userApi('/api/users', 'POST', { full_name: name, username, password }).then(() => {
+                ['nu-name', 'nu-username', 'nu-password'].forEach(id => document.getElementById(id).value = '');
+                alert('Akun dibuat.\nUsername: ' + username + '\nKata sandi: ' + password + '\nBerikan kepada pengguna.');
+                loadUsersTab();
+            }).catch(err => alert('Gagal membuat akun: ' + err.message));
+        }
+
+        function resetUserPassword(userId) {
+            const pw = prompt('Kata sandi baru (min. 8 karakter, huruf dan angka).\nPengguna yang sedang login akan otomatis keluar:');
+            if (!pw) return;
+            userApi(`/api/users/${userId}/password`, 'PUT', { password: pw })
+                .then(() => alert('Kata sandi diubah. Berikan sandi baru kepada pengguna.'))
+                .catch(err => alert('Gagal mengubah sandi: ' + err.message));
+        }
+
+        function deleteUser(userId) {
+            if (!confirm('Hapus akun ini secara permanen? Riwayat login tetap tersimpan.')) return;
+            userApi(`/api/users/${userId}`, 'DELETE').then(loadUsersTab)
+                .catch(err => alert('Gagal menghapus: ' + err.message));
+        }
+
+        function toggleUserActive(userId, active) {
+            const msg = active ? 'Aktifkan kembali akun pengguna ini?' : 'Nonaktifkan akun ini? Pengguna akan langsung keluar dan tidak bisa login lagi.';
+            if (!confirm(msg)) return;
+            fetch(`/api/users/${userId}/active`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_active: !!active })
+            }).then(r => r.json()).then(res => {
+                if (res.status !== 'success') throw new Error(res.message || 'gagal');
+                loadUsersTab();
+            }).catch(err => alert('Gagal mengubah status: ' + err.message));
+        }
+
+        // --- ZONE OCCUPANCY REALTIME (Kebutuhan #3 — otomatis nambah tiap kamera baru) ---
+        function renderZoneOccupancy(cameras) {
+            const container = document.getElementById('zone-occupancy-list');
+            const note = document.getElementById('zone-status-note');
+            const activeCams = (cameras || []).filter(c => c.is_streaming && (!selectedCamId || c.id === selectedCamId));
+
+            if (activeCams.length === 0) {
+                container.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Belum ada kamera aktif untuk ditampilkan sebagai zona.</p>';
+                note.innerHTML = '';
+                return;
+            }
+
+            let nearLimit = 0;
+            container.innerHTML = activeCams.map(cam => {
+                const capacity = cam.max_capacity || 100;
+                const occupancy = cam.occupancy || 0;
+                const percent = Math.min(100, Math.round((occupancy / capacity) * 100));
+                let barColor = 'bg-emerald-500', textColor = 'text-emerald-600';
+                if (percent >= 80) { barColor = 'bg-rose-500'; textColor = 'text-rose-600'; nearLimit++; }
+                else if (percent >= 50) { barColor = 'bg-amber-500'; textColor = 'text-amber-600'; }
+                else if (percent >= 25) { barColor = 'bg-[#315f8c]'; textColor = 'text-[#315f8c]'; }
+
+                return `
+                    <div>
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="font-medium text-ink">${escapeHtml(cam.location || cam.name)}</span>
+                            <span class="${textColor} font-semibold">${occupancy} / ${capacity}</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div class="h-full ${barColor} rounded-full transition-all duration-500" style="width: ${percent === 0 ? 0 : Math.max(3, percent)}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (nearLimit > 0) {
+                note.className = 'flex items-center gap-1.5 text-[11px] text-rose-600 font-medium pt-4';
+                note.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> ${nearLimit} zona mendekati ambang kapasitas`;
+            } else {
+                note.className = 'flex items-center gap-1.5 text-[11px] text-emerald-600 font-medium pt-4';
+                note.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Seluruh zona di bawah ambang kapasitas';
+            }
+        }
+
+        function escapeHtml(str) {
+            // Tag nama itu teks bebas dari admin - selalu di-escape sebelum
+            // dimasukkan ke innerHTML, supaya tidak bisa dipakai nyuntik
+            // HTML/script (XSS) lewat isian tag.
+            const div = document.createElement('div');
+            div.textContent = str == null ? '' : String(str);
+            return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // Tanda tangan bagian kartu yang BUKAN hitungan. Kalau tidak berubah,
+        // kartu (dan <img> video di dalamnya) dibiarkan apa adanya supaya
+        // stream tidak putus-nyambung & tampilan tidak "reset" tiap polling.
+        function camCardSignature(cam) {
+            return JSON.stringify([
+                cam.id, cam.name, cam.location, cam.brand, cam.ip_address, cam.port,
+                cam.is_streaming ? 1 : 0, cam.tag_name || '', cam.label_masuk || '', cam.label_keluar || ''
+            ]);
+        }
+
+        function buildCameraCard(cam, sig) {
+            const online = cam.is_streaming;
+            const statusPill = online
+                ? '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold tracking-wide"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>ONLINE</span>'
+                : '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-semibold tracking-wide"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>OFFLINE</span>';
+            const countBadge = online
+                ? '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#fdf3dc] text-[#9a6b0a] text-[10px] font-semibold tracking-wide"><i data-lucide="scan-line" class="w-3 h-3"></i>COUNTING AKTIF</span>'
+                : '<span class="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 text-[10px] font-semibold tracking-wide">NONAKTIF</span>';
+
+            const videoBlock = online
+                ? `<div class="bg-black rounded-lg overflow-hidden aspect-video">
+                        <img data-src="/video_feed/${cam.id}" class="grid-cam-img w-full h-full object-contain" alt="${escapeHtml(cam.name)}">
+                   </div>`
+                : `<div class="bg-slate-100 rounded-lg aspect-video flex flex-col items-center justify-center text-slate-400 space-y-2">
+                        <i data-lucide="video-off" class="w-8 h-8"></i>
+                        <span class="text-xs font-semibold">Channel Standby</span>
+                   </div>`;
+
+            const labelMasuk = cam.label_masuk || 'MASUK';
+            const labelKeluar = cam.label_keluar || 'KELUAR';
+            const tagBadge = cam.tag_name
+                ? `<span class="px-2 py-0.5 bg-violet-50 text-violet-700 border border-violet-200 rounded-full text-[10px] font-semibold">${escapeHtml(cam.tag_name)}</span>`
+                : '';
+
+            const btn = 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-ink bg-white border border-line rounded-lg hover:bg-slate-50 transition';
+
+            return `
+                <div data-cam-id="${cam.id}" class="cam-card bg-white border border-line rounded-xl p-5 ${online ? '' : 'opacity-70'}">
+                    <div class="flex justify-between items-start gap-3">
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 text-[15px] font-semibold text-ink">
+                                <i data-lucide="cctv" class="w-4 h-4 text-gold shrink-0"></i>
+                                <span class="truncate">${escapeHtml(cam.name)}</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1 ml-6">${escapeHtml(cam.location)} · ${escapeHtml(cam.brand)}${IS_ADMIN ? ' · ' + escapeHtml(cam.ip_address) + ':' + escapeHtml(cam.port) : ''}</p>
+                        </div>
+                        <span class="flex items-center gap-1.5 shrink-0">${tagBadge}${statusPill}</span>
+                    </div>
+                    <div class="cam-body mt-4">
+                        <div class="cam-video">${videoBlock}</div>
+                        <div class="cam-side">
+                            <div class="cam-counts flex gap-6">
+                                <div>
+                                    <p class="text-[10px] uppercase tracking-wide text-slate-500">${escapeHtml(labelMasuk)}</p>
+                                    <p class="cam-count-in text-[26px] leading-none font-medium text-emerald-600 mt-1">${cam.count_in}</p>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] uppercase tracking-wide text-slate-500">${escapeHtml(labelKeluar)}</p>
+                                    <p class="cam-count-out text-[26px] leading-none font-medium text-amber-600 mt-1">${cam.count_out}</p>
+                                </div>
+                            </div>
+                            <div class="cam-badge">${countBadge}</div>
+                            <div class="cam-actions flex items-center gap-2 ${IS_ADMIN ? '' : 'hidden'}">
+                                <button onclick="openCountingConfig(${cam.id})" title="Atur Garis & Label Counting" class="${btn}">
+                                    <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>Tautan
+                                </button>
+                                <button onclick="editCameraById(${cam.id})" class="${btn}">
+                                    <i data-lucide="pencil" class="w-3.5 h-3.5"></i>Edit
+                                </button>
+                                <button onclick="deleteCameraById(${cam.id})" title="Hapus" class="p-2 text-rose-600 bg-white border border-line rounded-lg hover:bg-rose-50 transition">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateCameraGridSummary(cameras) {
+            const list = cameras || [];
+            const online = list.filter(c => c.is_streaming).length;
+            const total = document.getElementById('cam-grid-total');
+            const on = document.getElementById('cam-grid-online');
+            if (total) total.innerText = `${list.length} unit CCTV`;
+            if (on) on.innerText = `${online} Online`;
+        }
+
+        function renderCameraGrid(cameras) {
+            const grid = document.getElementById('camera-grid');
+            updateCameraGridSummary(cameras);
+            if (!cameras || cameras.length === 0) {
+                grid.innerHTML = '<div class="col-span-2 text-center text-slate-500 text-xs py-8">Belum ada unit CCTV. Klik "Tambah Unit CCTV" untuk menambahkan.</div>';
+                return;
+            }
+            // Buang pesan "belum ada unit" kalau sebelumnya kosong
+            grid.querySelectorAll(':scope > :not([data-cam-id])').forEach(el => el.remove());
+
+            const existing = new Map();
+            grid.querySelectorAll(':scope > [data-cam-id]').forEach(el => existing.set(el.dataset.camId, el));
+            const wanted = new Set(cameras.map(c => String(c.id)));
+            existing.forEach((el, id) => { if (!wanted.has(id)) { releaseCardStreams(el); el.remove(); } });
+
+            cameras.forEach((cam, idx) => {
+                const sig = camCardSignature(cam);
+                let el = existing.get(String(cam.id));
+                if (el && el.dataset.sig === sig) {
+                    // Tidak ada yang berubah selain angka -> update angka saja
+                    const inEl = el.querySelector('.cam-count-in');
+                    const outEl = el.querySelector('.cam-count-out');
+                    if (inEl && inEl.textContent !== String(cam.count_in)) inEl.textContent = cam.count_in;
+                    if (outEl && outEl.textContent !== String(cam.count_out)) outEl.textContent = cam.count_out;
+                } else {
+                    const tmp = document.createElement('div');
+                    tmp.innerHTML = buildCameraCard(cam, sig).trim();
+                    const fresh = tmp.firstElementChild;
+                    fresh.dataset.sig = sig;
+                    if (el) { releaseCardStreams(el); el.replaceWith(fresh); } else grid.appendChild(fresh);
+                    el = fresh;
+                }
+                if (grid.children[idx] !== el) grid.insertBefore(el, grid.children[idx] || null);
+            });
+            syncGridStreams();
+            try { lucide.createIcons(); } catch (e) { console.warn('lucide:', e); }
+        }
+
+        // Putuskan koneksi MJPEG sebuah kartu secara eksplisit. Browser cuma
+        // mengizinkan ~6 koneksi per host; kalau koneksi video lama menggantung,
+        // request /api/stats ikut antre dan angka dashboard berhenti update.
+        function releaseCardStreams(el) {
+            el.querySelectorAll('img').forEach(img => { img.removeAttribute('src'); });
+        }
+
+        // Video di tab Live Cameras hanya dimuat saat tab itu sedang dibuka,
+        // supaya tidak makan slot koneksi saat user ada di Dashboard.
+        function syncGridStreams() {
+            const visible = !document.getElementById('tab-live-cameras').classList.contains('hidden');
+            document.querySelectorAll('#camera-grid img.grid-cam-img').forEach(img => {
+                const want = img.dataset.src;
+                if (visible) {
+                    if (img.getAttribute('src') !== want) img.setAttribute('src', want);
+                } else if (img.hasAttribute('src')) {
+                    img.removeAttribute('src');
+                }
+            });
+        }
+
+        function editCameraById(camId) {
+            const cam = (window.camerasCache || []).find(c => c.id === camId);
+            if (cam) editCamera(cam);
+        }
+
+        function deleteCameraById(camId) {
+            const cam = (window.camerasCache || []).find(c => c.id === camId);
+            deleteCamera(camId, cam ? cam.name : String(camId));
+        }
+
+        function openCameraForm() {
+            document.getElementById('camera-form-title').innerText = 'Tambah Unit CCTV';
+            document.getElementById('cam-form-id').value = '';
+            document.getElementById('cam-form-name').value = '';
+            document.getElementById('cam-form-location').value = '';
+            document.getElementById('cam-form-brand').value = '';
+            document.getElementById('cam-form-port').value = '554';
+            document.getElementById('cam-form-ip').value = '';
+            document.getElementById('cam-form-username').value = '';
+            document.getElementById('cam-form-password').value = '';
+            // Kamera BARU: belum ada password tersimpan sama sekali, jadi
+            // WAJIB diisi - placeholder ini sebelumnya salah, ke-copy dari
+            // form Edit ("kosongkan jika tidak diubah") padahal tidak ada
+            // password lama yang bisa "tidak diubah". Itu bikin orang
+            // mengira boleh dikosongkan, padahal kalau dikosongkan RTSP-nya
+            // tersimpan dengan password kosong dan pasti gagal 401.
+            document.getElementById('cam-form-password').placeholder = 'Wajib diisi - password RTSP kamera';
+            document.getElementById('cam-form-streampath').value = '/cam/realmonitor?channel=1&subtype=1';
+            document.getElementById('cam-form-tag').value = '';
+            document.getElementById('cam-form-active').checked = true;
+            document.getElementById('cam-form-test-result').classList.add('hidden');
+            document.getElementById('camera-form-modal').classList.remove('hidden');
+        }
+
+        function editCamera(cam) {
+            document.getElementById('camera-form-title').innerText = 'Edit Unit CCTV: ' + cam.name;
+            document.getElementById('cam-form-id').value = cam.id;
+            document.getElementById('cam-form-name').value = cam.name || '';
+            document.getElementById('cam-form-location').value = cam.location || '';
+            document.getElementById('cam-form-brand').value = cam.brand || '';
+            document.getElementById('cam-form-port').value = cam.port || 554;
+            document.getElementById('cam-form-ip').value = cam.ip_address || '';
+            document.getElementById('cam-form-username').value = cam.username || '';
+            document.getElementById('cam-form-password').value = '';
+            // Kamera LAMA: password sudah tersimpan di database, jadi field
+            // ini memang boleh dikosongkan kalau tidak mau menggantinya.
+            document.getElementById('cam-form-password').placeholder = '(kosongkan jika tidak diubah)';
+            document.getElementById('cam-form-streampath').value = cam.stream_path || '';
+            document.getElementById('cam-form-tag').value = cam.tag_name || '';
+            document.getElementById('cam-form-active').checked = !!cam.is_active;
+            document.getElementById('cam-form-test-result').classList.add('hidden');
+            document.getElementById('camera-form-modal').classList.remove('hidden');
+        }
+
+        function closeCameraForm() {
+            document.getElementById('camera-form-modal').classList.add('hidden');
+        }
+
+        function collectCameraFormData() {
+            return {
+                name: document.getElementById('cam-form-name').value.trim(),
+                location: document.getElementById('cam-form-location').value.trim(),
+                brand: document.getElementById('cam-form-brand').value.trim() || 'Generic',
+                port: parseInt(document.getElementById('cam-form-port').value) || 554,
+                ip_address: document.getElementById('cam-form-ip').value.trim(),
+                username: document.getElementById('cam-form-username').value.trim(),
+                password: document.getElementById('cam-form-password').value,
+                stream_path: document.getElementById('cam-form-streampath').value.trim() || '/cam/realmonitor?channel=1&subtype=1',
+                tag_name: document.getElementById('cam-form-tag').value.trim(),
+                is_active: document.getElementById('cam-form-active').checked ? 1 : 0
+            };
+        }
+
+        function saveCameraForm() {
+            const payload = collectCameraFormData();
+            if (!payload.name || !payload.location || !payload.ip_address) {
+                alert('Nama, Lokasi, dan Alamat IP wajib diisi.');
+                return;
+            }
+            const camId = document.getElementById('cam-form-id').value;
+            const url = camId ? `/api/cameras/${camId}` : '/api/cameras';
+            const method = camId ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+                .then(res => res.json().then(data => ({ ok: res.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        alert(data.message || 'Gagal menyimpan kamera.');
+                        return;
+                    }
+                    closeCameraForm();
+                    loadCameras();
+                })
+                .catch(err => alert('Gagal menyimpan kamera: ' + err));
+        }
+
+        function deleteCamera(camId, camName) {
+            if (!confirm(`Hapus unit CCTV "${camName}"? Counting untuk kamera ini akan dihentikan.`)) return;
+            fetch(`/api/cameras/${camId}`, { method: 'DELETE' })
+                .then(res => res.json())
+                .then(() => loadCameras())
+                .catch(err => alert('Gagal menghapus kamera: ' + err));
+        }
+
+        function testCameraConnection() {
+            const payload = collectCameraFormData();
+            const resultEl = document.getElementById('cam-form-test-result');
+            resultEl.classList.remove('hidden');
+            resultEl.className = 'p-2.5 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-600';
+            resultEl.innerText = 'Menguji koneksi RTSP...';
+
+            // Jaring pengaman sisi browser: server sekarang punya batas waktu
+            // keras 12 detik (lihat main.py), tapi kalau karena sebab lain
+            // request tetap tidak kunjung dibalas, browser sendiri yang
+            // membatalkan permintaan ini setelah 15 detik - supaya tombol
+            // TIDAK PERNAH macet selamanya menunggu respons yang tidak datang.
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+            fetch('/api/cameras/test-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            })
+                .then(res => res.json().then(data => ({ ok: res.ok, data })))
+                .then(({ ok, data }) => {
+                    resultEl.className = ok
+                        ? 'p-2.5 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200'
+                        : 'p-2.5 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-600 border border-rose-200';
+                    resultEl.innerText = data.message;
+                })
+                .catch(err => {
+                    resultEl.className = 'p-2.5 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-600 border border-rose-200';
+                    resultEl.innerText = (err.name === 'AbortError')
+                        ? 'Waktu tes habis, server tidak merespons. Cek apakah IP ini sudah dipakai kamera lain yang sedang aktif.'
+                        : 'Gagal menguji koneksi: ' + err;
+                })
+                .finally(() => clearTimeout(timeoutId));
+        }
+
+        // ==============================================================
+        // MODAL ATUR GARIS & LABEL COUNTING (Kebutuhan #1)
+        // ==============================================================
+        // ==============================================================
+        // GARIS COUNTING 360 DERAJAT - drag 2 titik bebas di atas preview
+        // ==============================================================
+        // State 2 titik ujung garis, dalam PECAHAN 0.0-1.0 dari lebar/tinggi
+        // kotak preview (bukan piksel) - supaya konsisten berapa pun ukuran
+        // tampilan modal di layar (desktop/mobile beda ukuran).
+        let ccLinePoints = { x1: 0.0, y1: 0.5, x2: 1.0, y2: 0.5 };
+        let ccDragging = null; // null | 1 | 2 (titik mana yang sedang ditarik)
+
+        function openCountingConfig(camId) {
+            const cam = (window.camerasCache || []).find(c => c.id === camId);
+            if (!cam) return;
+
+            document.getElementById('cc-cam-id').value = camId;
+            document.getElementById('cc-cam-name').innerText = cam.name + ' • ' + cam.location;
+
+            const previewImg = document.getElementById('cc-preview-img');
+            previewImg.src = cam.is_streaming ? `/video_feed/${camId}` : '';
+
+            // Kalau kamera ini sudah pernah punya garis fleksibel (line_x1 dkk
+            // tersimpan), pakai itu. Kalau belum pernah diatur ulang (kamera
+            // lama), turunkan garis horizontal dari line_position lama supaya
+            // tetap konsisten dengan yang sedang berjalan di backend.
+            if (cam.line_x1 != null && cam.line_y1 != null && cam.line_x2 != null && cam.line_y2 != null) {
+                ccLinePoints = { x1: +cam.line_x1, y1: +cam.line_y1, x2: +cam.line_x2, y2: +cam.line_y2 };
+            } else {
+                const legacyY = cam.line_position != null ? +cam.line_position : 0.5;
+                ccLinePoints = { x1: 0.0, y1: legacyY, x2: 1.0, y2: legacyY };
+            }
+            renderCcLine();
+
+            document.getElementById('cc-label-masuk').value = cam.label_masuk || 'MASUK';
+            document.getElementById('cc-label-keluar').value = cam.label_keluar || 'KELUAR';
+            document.getElementById('cc-direction').value = cam.count_direction || 'down_in';
+            document.getElementById('cc-max-capacity').value = cam.max_capacity || 100;
+            document.getElementById('cc-tag-name').value = cam.tag_name || '';
+
+            document.getElementById('counting-config-modal').classList.remove('hidden');
+        }
+
+        function renderCcLine() {
+            const h1 = document.getElementById('cc-handle-1');
+            const h2 = document.getElementById('cc-handle-2');
+            const line = document.getElementById('cc-line-el');
+            h1.style.left = (ccLinePoints.x1 * 100) + '%';
+            h1.style.top = (ccLinePoints.y1 * 100) + '%';
+            h2.style.left = (ccLinePoints.x2 * 100) + '%';
+            h2.style.top = (ccLinePoints.y2 * 100) + '%';
+            line.setAttribute('x1', ccLinePoints.x1 * 100);
+            line.setAttribute('y1', ccLinePoints.y1 * 100);
+            line.setAttribute('x2', ccLinePoints.x2 * 100);
+            line.setAttribute('y2', ccLinePoints.y2 * 100);
+        }
+
+        function ccPointerToFraction(evt) {
+            const rect = document.getElementById('cc-preview-container').getBoundingClientRect();
+            const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+            const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+            let fx = (clientX - rect.left) / rect.width;
+            let fy = (clientY - rect.top) / rect.height;
+            fx = Math.min(Math.max(fx, 0), 1);
+            fy = Math.min(Math.max(fy, 0), 1);
+            return { fx, fy };
+        }
+
+        function ccStartDrag(which) {
+            return function (evt) {
+                evt.preventDefault();
+                ccDragging = which;
+            };
+        }
+
+        function ccOnMove(evt) {
+            if (!ccDragging) return;
+            evt.preventDefault();
+            const { fx, fy } = ccPointerToFraction(evt);
+            if (ccDragging === 1) { ccLinePoints.x1 = fx; ccLinePoints.y1 = fy; }
+            else { ccLinePoints.x2 = fx; ccLinePoints.y2 = fy; }
+            renderCcLine();
+        }
+
+        function ccEndDrag() {
+            ccDragging = null;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const h1 = document.getElementById('cc-handle-1');
+            const h2 = document.getElementById('cc-handle-2');
+            if (!h1 || !h2) return;
+            h1.addEventListener('mousedown', ccStartDrag(1));
+            h1.addEventListener('touchstart', ccStartDrag(1), { passive: false });
+            h2.addEventListener('mousedown', ccStartDrag(2));
+            h2.addEventListener('touchstart', ccStartDrag(2), { passive: false });
+            document.addEventListener('mousemove', ccOnMove);
+            document.addEventListener('touchmove', ccOnMove, { passive: false });
+            document.addEventListener('mouseup', ccEndDrag);
+            document.addEventListener('touchend', ccEndDrag);
+        });
+
+        function closeCountingConfig() {
+            document.getElementById('counting-config-modal').classList.add('hidden');
+            document.getElementById('cc-preview-img').removeAttribute('src');
+        }
+
+        function saveCountingConfig() {
+            const camId = document.getElementById('cc-cam-id').value;
+            const payload = {
+                line_x1: ccLinePoints.x1.toFixed(4),
+                line_y1: ccLinePoints.y1.toFixed(4),
+                line_x2: ccLinePoints.x2.toFixed(4),
+                line_y2: ccLinePoints.y2.toFixed(4),
+                label_masuk: document.getElementById('cc-label-masuk').value.trim() || 'MASUK',
+                label_keluar: document.getElementById('cc-label-keluar').value.trim() || 'KELUAR',
+                count_direction: document.getElementById('cc-direction').value,
+                max_capacity: parseInt(document.getElementById('cc-max-capacity').value) || 100,
+                tag_name: document.getElementById('cc-tag-name').value.trim()
+            };
+
+            fetch(`/api/cameras/${camId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+                .then(res => res.json().then(data => ({ ok: res.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        alert(data.message || 'Gagal menyimpan pengaturan counting.');
+                        return;
+                    }
+                    closeCountingConfig();
+                    loadCameras();
+                })
+                .catch(err => alert('Gagal menyimpan pengaturan counting: ' + err));
+        }
+
+        // ==============================================================
+        // TAMPILAN: tanggal halaman & shortcut pencarian (⌘K / Ctrl+K)
+        // ==============================================================
+        (function initPageChrome() {
+            const dateEl = document.getElementById('page-date');
+            function tickDate() {
+                if (dateEl) dateEl.innerText = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            }
+            tickDate();
+            setInterval(tickDate, 60000);
+
+            const input = document.getElementById('global-search-input');
+            const hint = document.getElementById('search-kbd-hint');
+            if (hint && !/Mac|iPhone|iPad/i.test(navigator.platform || '')) hint.innerText = 'Ctrl K';
+            document.addEventListener('keydown', function (e) {
+                if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 'k') {
+                    e.preventDefault();
+                    if (input) input.focus();
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
